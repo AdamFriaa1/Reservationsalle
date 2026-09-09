@@ -123,12 +123,25 @@ require __DIR__ . '/partials/header.php';
                 </thead>
                 <tbody>
                 <?php foreach ($batiments as $b): ?>
+                    <?php $bPhoto = photo_batiment_url($b['image'] ?? null); ?>
                     <tr>
                         <td>
-                            <div class="cell-titre"><?= e($b['nom']) ?></div>
-                            <?php if (!empty($b['description'])): ?>
-                                <div class="cell-sub"><?= e(mb_substr($b['description'], 0, 55)) ?><?= mb_strlen($b['description']) > 55 ? '…' : '' ?></div>
-                            <?php endif; ?>
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <?php if ($bPhoto): ?>
+                                    <img src="<?= e($bPhoto) ?>" alt=""
+                                         style="width:46px;height:46px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid var(--gris-200);">
+                                <?php else: ?>
+                                    <span style="width:46px;height:46px;border-radius:8px;flex-shrink:0;display:grid;place-items:center;background:var(--gris-100);color:var(--gris-500);">
+                                        <i class="fas fa-building"></i>
+                                    </span>
+                                <?php endif; ?>
+                                <div>
+                                    <div class="cell-titre"><?= e($b['nom']) ?></div>
+                                    <?php if (!empty($b['description'])): ?>
+                                        <div class="cell-sub"><?= e(mb_substr($b['description'], 0, 55)) ?><?= mb_strlen($b['description']) > 55 ? '…' : '' ?></div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
                         </td>
                         <td><span class="badge badge-info mono"><?= e($b['code_batiment']) ?></span></td>
                         <td>

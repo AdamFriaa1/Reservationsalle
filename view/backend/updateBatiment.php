@@ -49,6 +49,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $erreurs[] = 'La description ne doit pas dépasser 1000 caractères.';
         }
 
+        // ---- Photo : remplacement ou suppression ----
+        $photoNom         = $existant['image'];
+        $ancienneAEffacer = null;
+        if (!$erreurs) {
+            try {
+                $nouvelle = photo_batiment_enregistrer($_FILES['photo'] ?? [], $donnees['code_batiment']);
+                if ($nouvelle !== null) {
+                    $ancienneAEffacer = $existant['image'];
+                    $photoNom = $nouvelle;
+                } elseif (!empty($_POST['supprimer_photo'])) {
+                    $ancienneAEffacer = $existant['image'];
+                    $photoNom = null;
+                }
+            } catch (RuntimeException $e) {
+                $erreurs[] = $e->getMessage();
+            }
+        }
+
         if (!$erreurs) {
             try {
                 $b = new Batiment();
@@ -57,9 +75,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $b->setAdresse($donnees['adresse']);
                 $b->setVille($donnees['ville']);
                 $b->setDescription($donnees['description'] !== '' ? $donnees['description'] : null);
-                $b->setImage($existant['image']);
+                $b->setImage($photoNom);
 
                 $batimentC->updateBatiment($b, $id);
+                if ($ancienneAEffacer !== null && $ancienneAEffacer !== $photoNom) {
+                    photo_batiment_supprimer($ancienneAEffacer);
+                }
                 flash_set('success', 'Bâtiment « ' . $donnees['nom'] . ' » mis à jour.');
                 redirect('listBatiment.php');
             } catch (Throwable $e) {
@@ -98,7 +119,7 @@ require __DIR__ . '/partials/header.php';
 <div class="card">
     <div class="card-header"><h3><i class="fas fa-building"></i> Informations</h3></div>
     <div class="card-body">
-        <form method="post" id="formBatiment" novalidate>
+        <form method="post" id="formBatiment" enctype="multipart/form-data" novalidate>
             <?= csrf_field() ?>
 
             <div class="form-grid">
@@ -126,6 +147,24 @@ require __DIR__ . '/partials/header.php';
                     <label for="description">Description</label>
                     <textarea id="description" name="description"><?= e($donnees['description']) ?></textarea>
                     <span class="erreur-champ" id="err-description"></span>
+                </div>
+
+                <?php $photoActuelle = photo_batiment_url($existant['image']); ?>
+                <div class="form-group full">
+                    <label for="photo">Photo du bâtiment</label>
+                    <?php if ($photoActuelle !== null): ?>
+                        <div style="margin:6px 0 10px;">
+                            <img src="<?= e($photoActuelle) ?>" alt="Photo de <?= e($existant['nom']) ?>"
+                                 style="max-width:280px;border-radius:8px;border:1px solid var(--gris-200);display:block;">
+                            <label class="checkbox-line" style="margin-top:8px;">
+                                <input type="checkbox" name="supprimer_photo" value="1"> Supprimer la photo actuelle
+                            </label>
+                        </div>
+                    <?php endif; ?>
+                    <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp">
+                    <span class="aide"><?= $photoActuelle !== null ? 'Choisir un fichier remplace la photo actuelle.' : 'Facultative.' ?> JPG, PNG ou WebP, 3 Mo maximum.</span>
+                    <span class="erreur-champ" id="err-photo"></span>
+                    <img id="apercuPhoto" alt="" style="display:none;max-width:280px;border-radius:8px;margin-top:8px;border:1px solid var(--gris-200);">
                 </div>
             </div>
 
@@ -162,4 +201,14 @@ Valider.attacher('formBatiment', {
     ],
     description: [{ test: v => v.trim().length <= 1000, message: '1000 caractères maximum.' }]
 });
+
+(function () {
+    const champ = document.getElementById('photo'), apercu = document.getElementById('apercuPhoto');
+    if (!champ || !apercu) return;
+    champ.addEventListener('change', () => {
+        const f = champ.files && champ.files[0];
+        if (!f) { apercu.style.display = 'none'; apercu.removeAttribute('src'); return; }
+        apercu.src = URL.createObjectURL(f); apercu.style.display = 'block';
+    });
+})();
 </script>

@@ -37,6 +37,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $erreurs[] = 'La description ne doit pas dépasser 1000 caractères.';
         }
 
+        // ---- Photo (facultative), traitée seulement si le reste est valide ----
+        $photoNom = null;
+        if (!$erreurs) {
+            try {
+                $photoNom = photo_batiment_enregistrer($_FILES['photo'] ?? [], $donnees['code_batiment']);
+            } catch (RuntimeException $e) {
+                $erreurs[] = $e->getMessage();
+            }
+        }
+
         if (!$erreurs) {
             try {
                 $b = new Batiment();
@@ -45,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $b->setAdresse($donnees['adresse']);
                 $b->setVille($donnees['ville']);
                 $b->setDescription($donnees['description'] !== '' ? $donnees['description'] : null);
+                $b->setImage($photoNom);
 
                 $id = $batimentC->addBatiment($b);
                 flash_set('success', 'Bâtiment « ' . $donnees['nom'] . ' » créé. Ajoutez-lui maintenant ses étages.');
@@ -82,7 +93,7 @@ require __DIR__ . '/partials/header.php';
 <div class="card">
     <div class="card-header"><h3><i class="fas fa-pen-to-square"></i> Informations du bâtiment</h3></div>
     <div class="card-body">
-        <form method="post" id="formBatiment" novalidate>
+        <form method="post" id="formBatiment" enctype="multipart/form-data" novalidate>
             <?= csrf_field() ?>
 
             <div class="form-grid">
@@ -120,6 +131,14 @@ require __DIR__ . '/partials/header.php';
                     <span class="aide">Facultatif — 1000 caractères maximum.</span>
                     <span class="erreur-champ" id="err-description"></span>
                 </div>
+
+                <div class="form-group full">
+                    <label for="photo">Photo du bâtiment</label>
+                    <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp">
+                    <span class="aide">Facultative — JPG, PNG ou WebP, 3 Mo maximum.</span>
+                    <span class="erreur-champ" id="err-photo"></span>
+                    <img id="apercuPhoto" alt="" style="display:none;max-width:280px;border-radius:8px;margin-top:8px;border:1px solid var(--gris-200);">
+                </div>
             </div>
 
             <div class="form-actions">
@@ -154,4 +173,14 @@ Valider.attacher('formBatiment', {
         { test: v => v.trim().length <= 1000, message: '1000 caractères maximum.' }
     ]
 });
+
+(function () {
+    const champ = document.getElementById('photo'), apercu = document.getElementById('apercuPhoto');
+    if (!champ || !apercu) return;
+    champ.addEventListener('change', () => {
+        const f = champ.files && champ.files[0];
+        if (!f) { apercu.style.display = 'none'; apercu.removeAttribute('src'); return; }
+        apercu.src = URL.createObjectURL(f); apercu.style.display = 'block';
+    });
+})();
 </script>

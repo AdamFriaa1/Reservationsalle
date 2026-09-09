@@ -323,36 +323,46 @@ function liste_equipements(?string $equipements): array
 }
 
 // =====================================================================
-//  PHOTOS DE SALLE
+//  PHOTOS (salles et bâtiments)
 // =====================================================================
-/** Dossier physique où sont stockées les photos de salle. */
-const SALLE_PHOTOS_DIR = APP_ROOT . '/assets/uploads/salles';
+/** Sous-dossiers autorisés sous assets/uploads/. */
+const PHOTO_DOSSIERS = ['salle' => 'salles', 'batiment' => 'batiments'];
+
+function _photo_dir(string $type): string
+{
+    $sous = PHOTO_DOSSIERS[$type] ?? null;
+    if ($sous === null) {
+        throw new InvalidArgumentException("Type de photo inconnu : $type");
+    }
+    return APP_ROOT . '/assets/uploads/' . $sous;
+}
 
 /**
- * URL utilisable dans une balise <img> pour la photo d'une salle.
+ * URL utilisable dans une balise <img>. Accepte aussi bien un nom de photo
+ * uploadée qu'une image de démonstration livrée avec le projet.
  *
  * @param string $prefixe Chemin relatif de la page vers la racine du projet
  *                        ('../../' pour les vues front et back).
- * @return string|null    null si la salle n'a pas de photo exploitable.
+ * @return string|null    null si aucune image exploitable.
  */
-function photo_salle_url(?string $fichier, string $prefixe = '../../'): ?string
+function photo_url(string $type, ?string $fichier, string $prefixe = '../../'): ?string
 {
     $fichier = trim((string)$fichier);
     if ($fichier === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $fichier)) {
         return null;
     }
-    if (!is_file(SALLE_PHOTOS_DIR . '/' . $fichier)) {
+    if (!is_file(_photo_dir($type) . '/' . $fichier)) {
         return null;
     }
-    return $prefixe . 'assets/uploads/salles/' . rawurlencode($fichier);
+    return $prefixe . 'assets/uploads/' . PHOTO_DOSSIERS[$type] . '/' . rawurlencode($fichier);
 }
 
 /**
- * Traite un champ <input type="file"> et enregistre la photo de la salle.
+ * Traite un champ <input type="file"> et enregistre la photo.
  * Retourne le nom de fichier créé, ou null si aucun fichier n'a été envoyé.
  * Lève une RuntimeException si le fichier est invalide.
  */
-function photo_salle_enregistrer(array $fichier, string $codeSalle): ?string
+function photo_enregistrer(string $type, array $fichier, string $prefixeNom): ?string
 {
     if (!isset($fichier['error']) || $fichier['error'] === UPLOAD_ERR_NO_FILE) {
         return null;
@@ -366,34 +376,45 @@ function photo_salle_enregistrer(array $fichier, string $codeSalle): ?string
 
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $mime  = $finfo->file($fichier['tmp_name']);
-    $extensions = [
-        'image/jpeg' => 'jpg',
-        'image/png'  => 'png',
-        'image/webp' => 'webp',
-    ];
+    $extensions = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
     if (!isset($extensions[$mime])) {
         throw new RuntimeException('Format accepté : JPG, PNG ou WebP.');
     }
 
-    if (!is_dir(SALLE_PHOTOS_DIR) && !mkdir(SALLE_PHOTOS_DIR, 0775, true) && !is_dir(SALLE_PHOTOS_DIR)) {
+    $dir = _photo_dir($type);
+    if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
         throw new RuntimeException("Impossible de créer le dossier des photos.");
     }
 
-    $base = preg_replace('/[^A-Za-z0-9_-]+/', '', strtolower($codeSalle)) ?: 'salle';
+    $base = preg_replace('/[^A-Za-z0-9_-]+/', '', strtolower($prefixeNom)) ?: $type;
     $nom  = $base . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(3)) . '.' . $extensions[$mime];
 
-    if (!move_uploaded_file($fichier['tmp_name'], SALLE_PHOTOS_DIR . '/' . $nom)) {
+    if (!move_uploaded_file($fichier['tmp_name'], $dir . '/' . $nom)) {
         throw new RuntimeException("Impossible d'enregistrer la photo sur le serveur.");
     }
     return $nom;
 }
 
-/** Supprime le fichier photo d'une salle s'il existe. */
-function photo_salle_supprimer(?string $fichier): void
+/** Supprime un fichier photo uploadé (jamais une image de démonstration .svg). */
+function photo_supprimer(string $type, ?string $fichier): void
 {
     $fichier = trim((string)$fichier);
-    if ($fichier !== '' && preg_match('/^[A-Za-z0-9._-]+$/', $fichier)
-        && is_file(SALLE_PHOTOS_DIR . '/' . $fichier)) {
-        @unlink(SALLE_PHOTOS_DIR . '/' . $fichier);
+    if ($fichier === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $fichier)) {
+        return;
+    }
+    if (str_ends_with(strtolower($fichier), '.svg')) {
+        return; // images de démo livrées avec le projet : on n'y touche pas
+    }
+    $chemin = _photo_dir($type) . '/' . $fichier;
+    if (is_file($chemin)) {
+        @unlink($chemin);
     }
 }
+
+// --- Raccourcis rétro-compatibles ------------------------------------
+function photo_salle_url(?string $f, string $p = '../../'): ?string     { return photo_url('salle', $f, $p); }
+function photo_salle_enregistrer(array $f, string $code): ?string        { return photo_enregistrer('salle', $f, $code); }
+function photo_salle_supprimer(?string $f): void                        { photo_supprimer('salle', $f); }
+function photo_batiment_url(?string $f, string $p = '../../'): ?string   { return photo_url('batiment', $f, $p); }
+function photo_batiment_enregistrer(array $f, string $code): ?string     { return photo_enregistrer('batiment', $f, $code); }
+function photo_batiment_supprimer(?string $f): void                     { photo_supprimer('batiment', $f); }
