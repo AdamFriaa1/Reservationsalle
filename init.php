@@ -321,3 +321,79 @@ function liste_equipements(?string $equipements): array
     if (empty($equipements)) return [];
     return array_values(array_filter(array_map('trim', explode(',', $equipements))));
 }
+
+// =====================================================================
+//  PHOTOS DE SALLE
+// =====================================================================
+/** Dossier physique où sont stockées les photos de salle. */
+const SALLE_PHOTOS_DIR = APP_ROOT . '/assets/uploads/salles';
+
+/**
+ * URL utilisable dans une balise <img> pour la photo d'une salle.
+ *
+ * @param string $prefixe Chemin relatif de la page vers la racine du projet
+ *                        ('../../' pour les vues front et back).
+ * @return string|null    null si la salle n'a pas de photo exploitable.
+ */
+function photo_salle_url(?string $fichier, string $prefixe = '../../'): ?string
+{
+    $fichier = trim((string)$fichier);
+    if ($fichier === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $fichier)) {
+        return null;
+    }
+    if (!is_file(SALLE_PHOTOS_DIR . '/' . $fichier)) {
+        return null;
+    }
+    return $prefixe . 'assets/uploads/salles/' . rawurlencode($fichier);
+}
+
+/**
+ * Traite un champ <input type="file"> et enregistre la photo de la salle.
+ * Retourne le nom de fichier créé, ou null si aucun fichier n'a été envoyé.
+ * Lève une RuntimeException si le fichier est invalide.
+ */
+function photo_salle_enregistrer(array $fichier, string $codeSalle): ?string
+{
+    if (!isset($fichier['error']) || $fichier['error'] === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($fichier['error'] !== UPLOAD_ERR_OK) {
+        throw new RuntimeException("L'envoi de la photo a échoué (code {$fichier['error']}).");
+    }
+    if ($fichier['size'] > 3 * 1024 * 1024) {
+        throw new RuntimeException('La photo ne doit pas dépasser 3 Mo.');
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime  = $finfo->file($fichier['tmp_name']);
+    $extensions = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/webp' => 'webp',
+    ];
+    if (!isset($extensions[$mime])) {
+        throw new RuntimeException('Format accepté : JPG, PNG ou WebP.');
+    }
+
+    if (!is_dir(SALLE_PHOTOS_DIR) && !mkdir(SALLE_PHOTOS_DIR, 0775, true) && !is_dir(SALLE_PHOTOS_DIR)) {
+        throw new RuntimeException("Impossible de créer le dossier des photos.");
+    }
+
+    $base = preg_replace('/[^A-Za-z0-9_-]+/', '', strtolower($codeSalle)) ?: 'salle';
+    $nom  = $base . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(3)) . '.' . $extensions[$mime];
+
+    if (!move_uploaded_file($fichier['tmp_name'], SALLE_PHOTOS_DIR . '/' . $nom)) {
+        throw new RuntimeException("Impossible d'enregistrer la photo sur le serveur.");
+    }
+    return $nom;
+}
+
+/** Supprime le fichier photo d'une salle s'il existe. */
+function photo_salle_supprimer(?string $fichier): void
+{
+    $fichier = trim((string)$fichier);
+    if ($fichier !== '' && preg_match('/^[A-Za-z0-9._-]+$/', $fichier)
+        && is_file(SALLE_PHOTOS_DIR . '/' . $fichier)) {
+        @unlink(SALLE_PHOTOS_DIR . '/' . $fichier);
+    }
+}

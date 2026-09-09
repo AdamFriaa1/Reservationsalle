@@ -224,6 +224,24 @@ table.data tbody tr { transition: background .15s ease; }
     letter-spacing: .04em;
 }
 .salle-visuel .etat { position: absolute; top: 12px; right: 12px; }
+.salle-visuel.a-photo { background: var(--gris-100); }
+.salle-visuel .salle-photo {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+}
+.salle-card:hover .salle-visuel .salle-photo { transform: none; }
+
+/* Photo dans le panneau « Salle sélectionnée » de la page Réserver */
+.salle-photo-panneau {
+    display: block;
+    width: 100%;
+    max-height: 170px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    border: 1px solid var(--gris-200);
+}
 
 .salle-body { padding: 18px; flex: 1; display: flex; flex-direction: column; }
 .salle-body h3 { font-size: 1.05rem; font-weight: 650; margin-bottom: 4px; }
@@ -452,7 +470,8 @@ table.data tbody tr:last-child td { border-bottom: none; }
 .cal-jour:hover { background: var(--bleu-clair); }
 .cal-jour.vide { background: var(--gris-50); cursor: default; }
 .cal-jour.vide:hover { background: var(--gris-50); }
-.cal-jour.passe { background: var(--gris-50); color: var(--gris-300); }
+.cal-jour.passe { background: var(--gris-50); color: var(--gris-300); cursor: not-allowed; }
+.cal-jour.passe:hover { background: var(--gris-50); }
 .cal-jour.aujourdhui { background: var(--bleu-clair); box-shadow: inset 0 0 0 2px var(--bleu); }
 .cal-jour.selection { box-shadow: inset 0 0 0 2px var(--violet); }
 .cal-num { font-size: .82rem; font-weight: 600; margin-bottom: 5px; }

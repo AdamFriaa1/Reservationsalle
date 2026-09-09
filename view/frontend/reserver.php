@@ -44,6 +44,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $donnees['date_fin']        = trim($_POST['date_fin'] ?? '');
         $donnees['nb_participants'] = $_POST['nb_participants'] ?? '';
 
+        // Le formulaire saisit un jour unique + deux heures ; on recompose
+        // les dates complètes ici (utile si JavaScript est indisponible).
+        $jourPoste = trim($_POST['date_jour'] ?? '');
+        $heureDeb  = trim($_POST['heure_debut'] ?? '');
+        $heureFin  = trim($_POST['heure_fin'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $jourPoste)) {
+            if ($donnees['date_debut'] === '' && preg_match('/^\d{2}:\d{2}$/', $heureDeb)) {
+                $donnees['date_debut'] = $jourPoste . 'T' . $heureDeb;
+            }
+            if ($donnees['date_fin'] === '' && preg_match('/^\d{2}:\d{2}$/', $heureFin)) {
+                $donnees['date_fin'] = $jourPoste . 'T' . $heureFin;
+            }
+        }
+
         // ---- Contrôles de saisie côté serveur ----
         if (!ctype_digit((string)$donnees['id_salle']) || (int)$donnees['id_salle'] < 1) {
             $erreurs[] = 'Merci de choisir une salle.';
@@ -127,6 +141,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $salleChoisie = null;
 if (ctype_digit((string)$donnees['id_salle']) && (int)$donnees['id_salle'] > 0) {
     try { $salleChoisie = $salleC->getSalle((int)$donnees['id_salle']); } catch (Throwable $e) { $salleChoisie = null; }
+}
+
+// Décompose les dates complètes en « jour + heure » pour les champs du formulaire.
+$vJour = $vHeureDebut = $vHeureFin = '';
+if (preg_match('/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/', (string)$donnees['date_debut'], $m)) {
+    $vJour = $m[1]; $vHeureDebut = $m[2];
+}
+if (preg_match('/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/', (string)$donnees['date_fin'], $m)) {
+    if ($vJour === '') $vJour = $m[1];
+    $vHeureFin = $m[2];
+}
+$minJour = date('Y-m-d');
+
+// Caractéristiques de toutes les salles, exposées au JavaScript pour un
+// affichage immédiat dès qu'une salle est choisie (sans recharger la page).
+$sallesInfos = [];
+foreach ($salles as $s) {
+    $sallesInfos[(int)$s['id_salle']] = [
+        'nom'          => $s['nom'],
+        'code'         => $s['code_salle'],
+        'batiment'     => $s['nom_batiment'],
+        'etage'        => $s['nom_etage'],
+        'capacite'     => (int)$s['capacite'],
+        'type'         => libelle_type_salle($s['type_salle']),
+        'ouverture'    => substr((string)$s['heure_ouverture'], 0, 5),
+        'fermeture'    => substr((string)$s['heure_fermeture'], 0, 5),
+        'annulation'   => (int)$s['delai_annulation'],
+        'localisation' => (string)($s['localisation'] ?? ''),
+        'equipements'  => liste_equipements($s['equipements'] ?? null),
+        'photo'        => photo_salle_url($s['image'] ?? null),
+        'pmr'          => (int)($s['accessible_pmr'] ?? 0) === 1,
+    ];
 }
 
 $titrePage  = 'Nouvelle réservation';
@@ -225,17 +271,28 @@ require __DIR__ . '/partials/header.php';
                             <span class="erreur-champ" id="err-titre"></span>
                         </div>
 
-                        <div class="form-group">
-                            <label for="date_debut">Début <span class="req">*</span></label>
-                            <input type="datetime-local" id="date_debut" name="date_debut" value="<?= e($donnees['date_debut']) ?>">
-                            <span class="erreur-champ" id="err-date_debut"></span>
+                        <div class="form-group full">
+                            <label for="date_jour">Jour de la réunion <span class="req">*</span></label>
+                            <input type="date" id="date_jour" name="date_jour"
+                                   value="<?= e($vJour) ?>" min="<?= e($minJour) ?>">
+                            <span class="aide">Choisissez d'abord la date : les heures ci-dessous s'appliquent à ce jour-là.</span>
+                            <span class="erreur-champ" id="err-date_jour"></span>
                         </div>
 
                         <div class="form-group">
-                            <label for="date_fin">Fin <span class="req">*</span></label>
-                            <input type="datetime-local" id="date_fin" name="date_fin" value="<?= e($donnees['date_fin']) ?>">
-                            <span class="erreur-champ" id="err-date_fin"></span>
+                            <label for="heure_debut">Heure de début <span class="req">*</span></label>
+                            <input type="time" id="heure_debut" name="heure_debut" value="<?= e($vHeureDebut) ?>" step="300">
+                            <span class="erreur-champ" id="err-heure_debut"></span>
                         </div>
+
+                        <div class="form-group">
+                            <label for="heure_fin">Heure de fin <span class="req">*</span></label>
+                            <input type="time" id="heure_fin" name="heure_fin" value="<?= e($vHeureFin) ?>" step="300">
+                            <span class="erreur-champ" id="err-heure_fin"></span>
+                        </div>
+
+                        <input type="hidden" id="date_debut" name="date_debut" value="<?= e($donnees['date_debut']) ?>">
+                        <input type="hidden" id="date_fin"   name="date_fin"   value="<?= e($donnees['date_fin']) ?>">
 
                         <div class="form-group">
                             <label for="nb_participants">Participants <span class="req">*</span></label>
@@ -266,10 +323,14 @@ require __DIR__ . '/partials/header.php';
 
         <div class="card">
             <div class="card-header"><h2><i class="fas fa-circle-info"></i> Salle sélectionnée</h2></div>
-            <div class="card-body">
+            <div class="card-body" id="panneauSalle">
                 <?php if ($salleChoisie === null): ?>
                     <p class="text-muted">Choisissez une salle pour voir ses caractéristiques.</p>
                 <?php else: ?>
+                    <?php $photoChoisie = photo_salle_url($salleChoisie['image'] ?? null); ?>
+                    <?php if ($photoChoisie): ?>
+                        <img src="<?= e($photoChoisie) ?>" alt="Photo de <?= e($salleChoisie['nom']) ?>" class="salle-photo-panneau">
+                    <?php endif; ?>
                     <h3 style="font-size:1.05rem;margin-bottom:4px;"><?= e($salleChoisie['nom']) ?></h3>
                     <p class="cell-sub mb-3"><?= e($salleChoisie['nom_batiment']) ?> · <?= e($salleChoisie['nom_etage']) ?></p>
                     <div class="detail-liste">
@@ -298,23 +359,97 @@ require __DIR__ . '/partials/header.php';
 <?php require __DIR__ . '/partials/footer.php'; ?>
 
 <script>
-/* Affiche la capacité de la salle choisie et adapte le maximum de participants. */
-const selectSalle = document.getElementById('id_salle');
-const aideCapacite = document.getElementById('aideCapacite');
+const SALLES_INFOS = <?= json_encode($sallesInfos, JSON_UNESCAPED_UNICODE) ?>;
 
-function majCapacite() {
-    const opt = selectSalle.options[selectSalle.selectedIndex];
-    const cap = opt ? opt.dataset.capacite : null;
-    if (cap) {
-        aideCapacite.textContent = 'Capacité maximale : ' + cap + ' personnes ('
-            + opt.dataset.ouverture + '–' + opt.dataset.fermeture + ').';
-        document.getElementById('nb_participants').max = cap;
+const selectSalle  = document.getElementById('id_salle');
+const aideCapacite = document.getElementById('aideCapacite');
+const panneauSalle = document.getElementById('panneauSalle');
+const champJour    = document.getElementById('date_jour');
+const champHDebut  = document.getElementById('heure_debut');
+const champHFin    = document.getElementById('heure_fin');
+const champDebut   = document.getElementById('date_debut');
+const champFin     = document.getElementById('date_fin');
+
+function echapper(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ---- Panneau « Salle sélectionnée » : rendu immédiat, sans recharger ---- */
+function rendrePanneau() {
+    const info = SALLES_INFOS[selectSalle.value];
+    if (!info) {
+        panneauSalle.innerHTML =
+            '<p class="text-muted">Choisissez une salle pour voir ses caractéristiques.</p>';
+        return;
+    }
+    let html = '';
+    if (info.photo) {
+        html += '<img src="' + echapper(info.photo) + '" alt="Photo de ' + echapper(info.nom)
+             + '" class="salle-photo-panneau">';
+    }
+    html += '<h3 style="font-size:1.05rem;margin-bottom:4px;">' + echapper(info.nom) + '</h3>';
+    html += '<p class="cell-sub mb-3">' + echapper(info.batiment) + ' · ' + echapper(info.etage) + '</p>';
+    html += '<div class="detail-liste">'
+         +  ligne('Code', info.code)
+         +  ligne('Capacité', info.capacite + ' personnes')
+         +  ligne('Type', info.type)
+         +  ligne('Ouverture', info.ouverture + ' – ' + info.fermeture)
+         +  ligne('Annulation', "jusqu'à " + info.annulation + ' h avant')
+         + (info.localisation ? ligne('Localisation', info.localisation) : '')
+         + (info.pmr ? ligne('Accès', 'Accessible PMR') : '')
+         +  '</div>';
+    if (info.equipements && info.equipements.length) {
+        html += '<div class="equip-list mt-3">'
+             +  info.equipements.map(x => '<span class="equip">' + echapper(x) + '</span>').join('')
+             +  '</div>';
+    }
+    html += '<a href="calendrier.php?salle=' + encodeURIComponent(selectSalle.value)
+         +  '" class="btn btn-light btn-sm btn-block mt-3">'
+         +  '<i class="fas fa-calendar"></i> Voir les disponibilités</a>';
+    panneauSalle.innerHTML = html;
+}
+function ligne(k, v) {
+    return '<div class="detail-ligne"><span class="k">' + echapper(k)
+         + '</span><span class="v">' + echapper(v) + '</span></div>';
+}
+
+/* ---- Capacité + bornes horaires selon la salle ---- */
+function majSalle() {
+    const info = SALLES_INFOS[selectSalle.value];
+    if (info) {
+        aideCapacite.textContent = 'Capacité maximale : ' + info.capacite + ' personnes ('
+            + info.ouverture + '–' + info.fermeture + ').';
+        document.getElementById('nb_participants').max = info.capacite;
+        champHDebut.min = info.ouverture; champHDebut.max = info.fermeture;
+        champHFin.min   = info.ouverture; champHFin.max   = info.fermeture;
     } else {
         aideCapacite.textContent = '';
     }
+    rendrePanneau();
 }
-selectSalle.addEventListener('change', majCapacite);
-majCapacite();
+selectSalle.addEventListener('change', majSalle);
+majSalle();
+
+/* ---- Jour unique + deux heures → champs cachés date_debut / date_fin ---- */
+function composerDates() {
+    const j = champJour.value;
+    champDebut.value = (j && champHDebut.value) ? j + 'T' + champHDebut.value : '';
+    champFin.value   = (j && champHFin.value)   ? j + 'T' + champHFin.value   : '';
+}
+/* En choisissant l'heure de début, on propose une fin une heure plus tard. */
+champHDebut.addEventListener('change', () => {
+    if (champHDebut.value && !champHFin.value) {
+        const [h, m] = champHDebut.value.split(':').map(Number);
+        const fin = new Date(2000, 0, 1, h + 1, m);
+        champHFin.value = String(fin.getHours()).padStart(2, '0') + ':'
+                        + String(fin.getMinutes()).padStart(2, '0');
+    }
+    composerDates();
+});
+[champJour, champHFin].forEach(c => c.addEventListener('change', composerDates));
+document.getElementById('formReservation').addEventListener('submit', composerDates);
+composerDates();
 
 Valider.attacher('formReservation', {
     id_salle: [
@@ -324,27 +459,26 @@ Valider.attacher('formReservation', {
         { test: v => Valider.requis(v),       message: "L'objet de la réunion est obligatoire." },
         { test: v => Valider.texte(v, 3, 150),message: 'Entre 3 et 150 caractères, pas uniquement des chiffres.' }
     ],
-    date_debut: [
-        { test: v => Valider.requis(v),       message: 'La date de début est obligatoire.' },
-        { test: v => Valider.dateFuture(v),   message: 'Impossible de réserver un créneau passé.' }
+    date_jour: [
+        { test: v => Valider.requis(v), message: 'Choisissez le jour de la réunion.' },
+        { test: v => v >= '<?= e($minJour) ?>', message: 'Impossible de réserver un jour passé.' }
     ],
-    date_fin: [
-        { test: v => Valider.requis(v),       message: 'La date de fin est obligatoire.' },
-        { test: (v, f) => Valider.apres(v, f.querySelector('#date_debut').value),
-          message: "La fin doit être postérieure au début." },
-        { test: (v, f) => Valider.memeJour(f.querySelector('#date_debut').value, v),
-          message: 'Le début et la fin doivent tomber le même jour.' },
-        { test: (v, f) => Valider.dureeMinutes(f.querySelector('#date_debut').value, v) >= 15,
-          message: 'La durée minimale est de 15 minutes.' },
-        { test: (v, f) => Valider.dureeMinutes(f.querySelector('#date_debut').value, v) <= 720,
-          message: 'La durée maximale est de 12 heures.' }
+    heure_debut: [
+        { test: v => Valider.requis(v), message: "Indiquez l'heure de début." }
+    ],
+    heure_fin: [
+        { test: v => Valider.requis(v), message: "Indiquez l'heure de fin." },
+        { test: (v, f) => Valider.minutesEntreHeures(f.querySelector('#heure_debut').value, v) > 0,
+          message: "La fin doit être après le début." },
+        { test: (v, f) => Valider.dureeCreneau(f.querySelector('#heure_debut').value, v, 15, 720),
+          message: 'Durée comprise entre 15 minutes et 12 heures.' }
     ],
     nb_participants: [
         { test: v => Valider.requis(v),        message: 'Le nombre de participants est obligatoire.' },
         { test: v => Valider.entier(v, 1, 1000), message: 'Entier entre 1 et 1000.' },
         { test: (v) => {
-            const opt = selectSalle.options[selectSalle.selectedIndex];
-            const cap = opt ? parseInt(opt.dataset.capacite || '0', 10) : 0;
+            const info = SALLES_INFOS[selectSalle.value];
+            const cap = info ? info.capacite : 0;
             return cap === 0 || parseInt(v, 10) <= cap;
           }, message: 'Ce nombre dépasse la capacité de la salle choisie.' }
     ],

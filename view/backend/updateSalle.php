@@ -90,6 +90,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $erreurs[] = "Le délai d'annulation doit être un entier entre 0 et 720 heures.";
         }
 
+        // ---- Photo : remplacement ou suppression (seulement si le reste est valide) ----
+        $photoNom       = $existante['image'];
+        $ancienneAEffacer = null;
+        if (!$erreurs) {
+            try {
+                $nouvelle = photo_salle_enregistrer($_FILES['photo'] ?? [], $donnees['code_salle']);
+                if ($nouvelle !== null) {
+                    $ancienneAEffacer = $existante['image'];
+                    $photoNom = $nouvelle;
+                } elseif (!empty($_POST['supprimer_photo'])) {
+                    $ancienneAEffacer = $existante['image'];
+                    $photoNom = null;
+                }
+            } catch (RuntimeException $e) {
+                $erreurs[] = $e->getMessage();
+            }
+        }
+
         if (!$erreurs) {
             try {
                 $equip = array_filter(array_map('trim', (array)$donnees['equipements']));
@@ -113,9 +131,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $s->setHeureOuverture($donnees['heure_ouverture'] . ':00');
                 $s->setHeureFermeture($donnees['heure_fermeture'] . ':00');
                 $s->setDelaiAnnulation((int)$donnees['delai_annulation']);
-                $s->setImage($existante['image']);
+                $s->setImage($photoNom);
 
                 $salleC->updateSalle($s, $id);
+                if ($ancienneAEffacer !== null && $ancienneAEffacer !== $photoNom) {
+                    photo_salle_supprimer($ancienneAEffacer);
+                }
                 flash_set('success', 'Salle « ' . $donnees['nom'] . ' » mise à jour.');
                 redirect('listSalle.php');
             } catch (Throwable $e) {
@@ -172,7 +193,7 @@ require __DIR__ . '/partials/header.php';
     </div>
 <?php endif; ?>
 
-<form method="post" id="formSalle" novalidate>
+<form method="post" id="formSalle" enctype="multipart/form-data" novalidate>
     <?= csrf_field() ?>
 
     <div class="card">
@@ -243,6 +264,29 @@ require __DIR__ . '/partials/header.php';
                 <span class="aide">Séparez les éléments par une virgule.</span>
                 <span class="erreur-champ" id="err-equipements_sup"></span>
             </div>
+        </div>
+    </div>
+
+    <?php $photoActuelle = photo_salle_url($existante['image']); ?>
+    <div class="card">
+        <div class="card-header"><h3><i class="fas fa-image"></i> Photo de la salle</h3></div>
+        <div class="card-body">
+            <?php if ($photoActuelle !== null): ?>
+                <div class="mb-3">
+                    <img src="<?= e($photoActuelle) ?>" alt="Photo de <?= e($existante['nom']) ?>"
+                         style="max-width:280px;border-radius:8px;border:1px solid var(--gris-200);display:block;">
+                    <label class="checkbox-line mt-2">
+                        <input type="checkbox" name="supprimer_photo" value="1"> Supprimer la photo actuelle
+                    </label>
+                </div>
+            <?php endif; ?>
+            <div class="form-group">
+                <label for="photo"><?= $photoActuelle !== null ? 'Remplacer par une autre photo' : 'Ajouter une photo (facultative)' ?></label>
+                <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp">
+                <span class="aide">JPG, PNG ou WebP — 3 Mo maximum.</span>
+                <span class="erreur-champ" id="err-photo"></span>
+            </div>
+            <img id="apercuPhoto" alt="" style="display:none;max-width:280px;border-radius:8px;margin-top:8px;border:1px solid var(--gris-200);">
         </div>
     </div>
 
@@ -317,4 +361,17 @@ Valider.attacher('formSalle', {
         { test: v => Valider.entier(v, 0, 720), message: 'Entier entre 0 et 720 heures.' }
     ]
 });
+
+/* Aperçu immédiat de la photo choisie. */
+(function () {
+    const champ  = document.getElementById('photo');
+    const apercu = document.getElementById('apercuPhoto');
+    if (!champ || !apercu) return;
+    champ.addEventListener('change', () => {
+        const f = champ.files && champ.files[0];
+        if (!f) { apercu.style.display = 'none'; apercu.removeAttribute('src'); return; }
+        apercu.src = URL.createObjectURL(f);
+        apercu.style.display = 'block';
+    });
+})();
 </script>

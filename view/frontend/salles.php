@@ -191,18 +191,24 @@ require __DIR__ . '/partials/header.php';
     <?php else: ?>
         <div class="grid grid-3">
             <?php foreach ($salles as $s): ?>
+                <?php $photo = photo_salle_url($s['image'] ?? null); ?>
                 <div class="salle-card">
-                    <div class="salle-visuel">
+                    <div class="salle-visuel<?= $photo ? ' a-photo' : '' ?>">
+                        <?php if ($photo): ?>
+                            <img class="salle-photo" src="<?= e($photo) ?>" alt="Photo de <?= e($s['nom']) ?>" loading="lazy">
+                        <?php endif; ?>
                         <span class="code"><?= e($s['code_salle']) ?></span>
                         <span class="etat">
                             <span class="badge <?= $s['etat'] === 'disponible' ? 'badge-success' : 'badge-warning' ?>">
                                 <?= e(libelle_etat_salle($s['etat'])) ?>
                             </span>
                         </span>
-                        <i class="fas fa-<?= $s['type_salle'] === 'conference' ? 'chalkboard-user'
-                            : ($s['type_salle'] === 'visio' ? 'video'
-                            : ($s['type_salle'] === 'formation' ? 'graduation-cap'
-                            : ($s['type_salle'] === 'coworking' ? 'laptop-code' : 'users'))) ?>"></i>
+                        <?php if (!$photo): ?>
+                            <i class="fas fa-<?= $s['type_salle'] === 'conference' ? 'chalkboard-user'
+                                : ($s['type_salle'] === 'visio' ? 'video'
+                                : ($s['type_salle'] === 'formation' ? 'graduation-cap'
+                                : ($s['type_salle'] === 'coworking' ? 'laptop-code' : 'users'))) ?>"></i>
+                        <?php endif; ?>
                     </div>
                     <div class="salle-body">
                         <h3><?= e($s['nom']) ?></h3>

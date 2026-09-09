@@ -19,3 +19,8 @@ desktop.ini
 .idea/
 *.swp
 *~
+
+# Photos de salle envoyées via le back-office (garder le dossier, pas les fichiers)
+/assets/uploads/salles/*
+!/assets/uploads/salles/.gitkeep
+!/assets/uploads/salles/index.html

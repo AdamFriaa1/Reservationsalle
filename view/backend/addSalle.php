@@ -84,6 +84,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $erreurs[] = 'La localisation ne doit pas dépasser 150 caractères.';
         }
 
+        // ---- Photo (facultative) : traitée seulement si le reste est valide ----
+        $photoNom = null;
+        if (!$erreurs) {
+            try {
+                $photoNom = photo_salle_enregistrer($_FILES['photo'] ?? [], $donnees['code_salle']);
+            } catch (RuntimeException $e) {
+                $erreurs[] = $e->getMessage();
+            }
+        }
+
         if (!$erreurs) {
             try {
                 // Fusion des cases cochées et des équipements libres
@@ -108,6 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $s->setHeureOuverture($donnees['heure_ouverture'] . ':00');
                 $s->setHeureFermeture($donnees['heure_fermeture'] . ':00');
                 $s->setDelaiAnnulation((int)$donnees['delai_annulation']);
+                $s->setImage($photoNom);
 
                 $salleC->addSalle($s);
                 flash_set('success', 'Salle « ' . $donnees['nom'] . ' » créée.');
@@ -151,7 +162,7 @@ require __DIR__ . '/partials/header.php';
     </div>
 <?php else: ?>
 
-<form method="post" id="formSalle" novalidate>
+<form method="post" id="formSalle" enctype="multipart/form-data" novalidate>
     <?= csrf_field() ?>
 
     <div class="card">
@@ -239,6 +250,19 @@ require __DIR__ . '/partials/header.php';
     </div>
 
     <div class="card">
+        <div class="card-header"><h3><i class="fas fa-image"></i> Photo de la salle</h3></div>
+        <div class="card-body">
+            <div class="form-group">
+                <label for="photo">Photo (facultative)</label>
+                <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp">
+                <span class="aide">JPG, PNG ou WebP — 3 Mo maximum. Elle s'affichera sur la fiche de la salle et lors d'une réservation.</span>
+                <span class="erreur-champ" id="err-photo"></span>
+            </div>
+            <img id="apercuPhoto" alt="" style="display:none;max-width:280px;border-radius:8px;margin-top:8px;border:1px solid var(--gris-200);">
+        </div>
+    </div>
+
+    <div class="card">
         <div class="card-header"><h3><i class="fas fa-clock"></i> Disponibilité et maintenance</h3></div>
         <div class="card-body">
             <div class="form-grid">
@@ -318,4 +342,17 @@ Valider.attacher('formSalle', {
         { test: v => Valider.entier(v, 0, 720),message: 'Entier entre 0 et 720 heures.' }
     ]
 });
+
+/* Aperçu immédiat de la photo choisie. */
+(function () {
+    const champ  = document.getElementById('photo');
+    const apercu = document.getElementById('apercuPhoto');
+    if (!champ || !apercu) return;
+    champ.addEventListener('change', () => {
+        const f = champ.files && champ.files[0];
+        if (!f) { apercu.style.display = 'none'; apercu.removeAttribute('src'); return; }
+        apercu.src = URL.createObjectURL(f);
+        apercu.style.display = 'block';
+    });
+})();
 </script>

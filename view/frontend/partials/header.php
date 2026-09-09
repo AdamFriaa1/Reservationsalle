@@ -22,7 +22,7 @@ $act = fn(string $p): string => $pageActive === $p ? ' active' : '';
     <!-- Template réelle Gentelella (MIT) -->
     <link rel="stylesheet" href="<?= $gtl ?>/assets/main-v4-pXJJcGAu.css">
     <!-- Composants métier ReservaSalles -->
-    <link rel="stylesheet" href="assets/css/front.css?v=7">
+    <link rel="stylesheet" href="assets/css/front.css?v=8">
 </head>
 <body data-shell="admin">
 

@@ -29,8 +29,12 @@ const Calendrier = {
     /* Clic sur une case du calendrier mensuel. */
     brancherJours() {
         document.querySelectorAll('.cal-jour[data-date]').forEach(jour => {
+            // Les journées vides ou déjà passées ne sont pas sélectionnables.
+            if (jour.classList.contains('vide') || jour.classList.contains('passe')) {
+                jour.setAttribute('aria-disabled', 'true');
+                return;
+            }
             jour.addEventListener('click', () => {
-                if (jour.classList.contains('vide')) return;
                 document.querySelectorAll('.cal-jour.selection').forEach(j => j.classList.remove('selection'));
                 jour.classList.add('selection');
                 this.dateChoisie = jour.dataset.date;
