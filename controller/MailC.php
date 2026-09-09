@@ -87,6 +87,22 @@ class MailC
             return false;
         }
 
+        // Certaines suites antivirus (Avast, ESET, Kaspersky...) inspectent le
+        // trafic SMTP chiffré en remplaçant le certificat de Gmail par le leur.
+        // PHP ne connaît pas cette autorité et refuse alors la connexion
+        // (« certificate verify failed »). On fournit un paquet de certificats
+        // qui contient, en plus des autorités Mozilla, la racine de l'antivirus
+        // local. La vérification du certificat reste donc active.
+        $sslOptions = [
+            'verify_peer'       => true,
+            'verify_peer_name'  => true,
+            'allow_self_signed' => false,
+        ];
+        $caBundle = dirname(__DIR__) . '/PHPMailer/cacert.pem';
+        if (is_file($caBundle)) {
+            $sslOptions['cafile'] = $caBundle;
+        }
+
         $mail = new PHPMailer(true);
         try {
             $mail->isSMTP();
@@ -97,13 +113,7 @@ class MailC
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = self::SMTP_PORT;
             $mail->CharSet    = 'UTF-8';
-            $mail->SMTPOptions = [
-                'ssl' => [
-                    'verify_peer'       => true,
-                    'verify_peer_name'  => true,
-                    'allow_self_signed' => false,
-                ],
-            ];
+            $mail->SMTPOptions = ['ssl' => $sslOptions];
 
             $mail->setFrom($ids['user'], self::FROM_NAME);
             $mail->addAddress($destinataire);
