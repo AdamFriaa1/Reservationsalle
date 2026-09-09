@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0369a1"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#g)"/>
+  <circle cx="670" cy="70" r="200" fill="#ffffff" opacity="0.08"/>
+  <circle cx="120" cy="410" r="150" fill="#ffffff" opacity="0.07"/>
+  <g transform="translate(400 168)" fill="none" stroke="#ffffff" stroke-width="7"
+     stroke-linecap="round" stroke-linejoin="round" opacity="0.92">
+    <path d="M-54 -10 l54 -24 l54 24 l-54 24 z"/><path d="M-30 2 v24 a34 12 0 0 0 60 0 v-24"/>
+  </g>
+  <text x="400" y="320" text-anchor="middle" fill="#ffffff" font-size="46" font-weight="700">Kairouan</text>
+  <text x="400" y="360" text-anchor="middle" fill="#ffffff" font-size="20" opacity="0.85">Salle de formation · 25 places</text>
+  <text x="400" y="424" text-anchor="middle" fill="#ffffff" font-size="14" opacity="0.6"
+        letter-spacing="2">PHOTO DE DEMONSTRATION - A REMPLACER</text>
+</svg>

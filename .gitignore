@@ -20,7 +20,10 @@ desktop.ini
 *.swp
 *~
 
-# Photos de salle envoyées via le back-office (garder le dossier, pas les fichiers)
-/assets/uploads/salles/*
-!/assets/uploads/salles/.gitkeep
-!/assets/uploads/salles/index.html
+# Photos envoyées via le back-office : on versionne les dossiers et les
+# images de démonstration (.svg), jamais les fichiers uploadés (jpg/png/webp).
+/assets/uploads/*/*.jpg
+/assets/uploads/*/*.jpeg
+/assets/uploads/*/*.png
+/assets/uploads/*/*.webp
+/assets/uploads/*/*.gif
