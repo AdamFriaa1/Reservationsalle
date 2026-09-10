@@ -1,13 +1,8 @@
-# ReservaSalles 2 — interface repensée
+# ReservaSalles
 
-Deuxième version de l'interface du projet **Technologies Web** (réservation de
-salles). Le moteur est identique à la v1 — **PHP 8, MVC, PDO, sans framework** —
-seule la couche de présentation a été refaite : système de design écrit à la
-main, calendrier interactif, animations et raccourcis clavier.
-
-> La v1 reste intacte dans `htdocs/ReservaSalles`. Les deux versions lisent la
-> **même base** `reserva_salles` : vous pouvez ouvrir l'une puis l'autre et
-> comparer sur les mêmes données.
+Application de réservation de salles de réunion : **PHP 8, MVC, PDO, sans
+framework**. Disponibilités en temps réel, détection des chevauchements,
+validation par un gestionnaire et notifications par email.
 
 ---
 
@@ -16,7 +11,7 @@ main, calendrier interactif, animations et raccourcis clavier.
 1. XAMPP → démarrer **Apache** et **MySQL**.
 2. Si la base n'est pas encore importée : phpMyAdmin → Importer →
    `database/reserva_salles.sql`.
-3. Ouvrir **<http://localhost/ReservaSalles2/>**
+3. Ouvrir **<http://localhost/ReservaSalles/>**
 
 Comptes de démonstration (mot de passe commun `123456`) :
 
@@ -26,12 +21,9 @@ Comptes de démonstration (mot de passe commun `123456`) :
 | Gestionnaire de réservations | `gestionnaire@reserva.tn` |
 | Utilisateur | `yassine@reserva.tn` · `ines@reserva.tn` |
 
-Sur l'écran de connexion, un clic sur un compte de démonstration remplit le
-formulaire.
-
 ---
 
-## Ce qui change par rapport à la v1
+## L'interface
 
 ### Système de design
 Aucun framework CSS. Trois feuilles écrites à la main :
@@ -53,7 +45,7 @@ Aucun framework CSS. Trois feuilles écrites à la main :
 ### Front-office
 - Coque « site produit » : barre supérieure translucide, plus de rail latéral.
 - **Page d'accueil** : bannière avec trame de plan animée, compteurs qui
-  s'incrémentent, parcours en trois étapes, catalogue et bâtiments.
+  s'incrémentent, catalogue des salles et bâtiments.
 - **Calendrier** : chaque jour porte un voyant *Libre / Chargé / Complet* calculé
   sur les minutes réservées par rapport aux heures d'ouverture réelles. Les jours
   passés sont inertes. Un clic ouvre le volet des créneaux, chargé en AJAX ; deux
@@ -89,27 +81,10 @@ Aucun framework CSS. Trois feuilles écrites à la main :
 
 ---
 
-## Contraintes du cahier des charges
-
-| Exigence | Respectée |
-|---|---|
-| PHP 8 | ✅ testé sous 8.2 |
-| Structure MVC | ✅ `model/`, `controller/`, `view/` inchangés |
-| PDO uniquement | ✅ aucun `mysqli` |
-| CRUD + jointures | ✅ contrôleurs identiques à la v1 |
-| Contrôles JS **et** PHP, pas de HTML | ✅ formulaires en `novalidate`, aucun attribut `required` |
-| Calendrier interactif | ✅ refait, chargement AJAX |
-| Conflits et chevauchements | ✅ `ReservationC::detecterConflits()` + contrôle en direct côté client |
-| Templates responsifs | ✅ front et back, du mobile au grand écran |
-| Notifications email | ✅ `MailC` / PHPMailer inchangé |
-| **Aucun framework** | ✅ CSS et JS écrits à la main ; seules dépendances externes : Google Fonts et Font Awesome (icônes) |
-
----
-
 ## Arborescence
 
 ```
-ReservaSalles2/
+ReservaSalles/
 ├── assets/
 │   ├── css/     app.css · shell.css · compat.css
 │   ├── js/      app.js · valider.js · calendrier.js
