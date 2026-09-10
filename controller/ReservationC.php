@@ -420,10 +420,21 @@ class ReservationC
     /**
      * Créneaux horaires d'une salle sur une journée, marqués libre/occupé.
      * Pas de 30 minutes entre l'ouverture et la fermeture.
+     *
+     * @param int|null $exclure Réservation à ignorer. Utile pendant un
+     *                          déplacement : la réunion qu'on déplace ne doit
+     *                          pas apparaître comme bloquant ses propres créneaux.
      */
-    public function getCreneauxJour(array $salle, string $date): array
+    public function getCreneauxJour(array $salle, string $date, ?int $exclure = null): array
     {
         $reservations = $this->getReservationsJour((int)$salle['id_salle'], $date);
+
+        if ($exclure !== null) {
+            $reservations = array_values(array_filter(
+                $reservations,
+                static fn(array $r): bool => (int)$r['id_reservation'] !== $exclure
+            ));
+        }
 
         $creneaux  = [];
         $debutJour = strtotime($date . ' ' . $salle['heure_ouverture']);

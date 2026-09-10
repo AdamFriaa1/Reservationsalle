@@ -1,14 +1,15 @@
 <?php
 /**
- * En-tête du BackOffice — intègre la template réelle GENTELELLA (ColorlibHQ, MIT,
- * sans Bootstrap/jQuery/framework), vendorisée dans /assets/gentelella/.
- * Le CSS de Gentelella habille le shell (sidebar, topbar, main) ; admin.css
- * habille les composants métier. Variables attendues : $titrePage, $pageActive
+ * En-tête du BackOffice — ReservaSalles 2
+ * Coque « console d'administration » : rail latéral repliable + barre supérieure.
+ * Variables attendues : $titrePage, $pageActive
  */
 $titrePage  = $titrePage  ?? 'Administration';
 $pageActive = $pageActive ?? '';
 $moi        = utilisateur_courant();
 $estAdmin   = role_courant() === 'admin';
+$init       = mb_strtoupper(mb_substr($moi['prenom'], 0, 1) . mb_substr($moi['nom'], 0, 1));
+$on         = fn(string $p): string => $pageActive === $p ? ' on' : '';
 
 $nbEnAttente = 0;
 try {
@@ -16,101 +17,125 @@ try {
         ->query("SELECT COUNT(*) FROM reservation WHERE statut = 'en_attente'")
         ->fetchColumn();
 } catch (Throwable $e) { $nbEnAttente = 0; }
-
-$gtl = '../../assets/gentelella';               // template vendorisée
-$init = mb_strtoupper(mb_substr($moi['prenom'], 0, 1) . mb_substr($moi['nom'], 0, 1));
-// petit utilitaire local pour l'état actif
-$act = fn(string $p): string => $pageActive === $p ? ' active' : '';
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= e($titrePage) ?> — Administration ReservaSalles</title>
+    <meta name="robots" content="noindex">
+    <title><?= e($titrePage) ?> · Administration ReservaSalles</title>
+
+    <script>
+        (function () {
+            document.documentElement.classList.add('js');
+            try {
+                var t = localStorage.getItem('rs2-theme');
+                if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+                var sombre = t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (sombre) document.documentElement.classList.add('theme-dark');
+            } catch (e) {}
+        })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap">
-    <!-- Template réelle Gentelella (MIT) -->
-    <link rel="stylesheet" href="<?= $gtl ?>/assets/main-v4-pXJJcGAu.css">
-    <!-- Composants métier ReservaSalles -->
-    <link rel="stylesheet" href="assets/css/admin.css?v=8">
+    <link rel="stylesheet" href="../../assets/css/app.css?v=10">
+    <link rel="stylesheet" href="../../assets/css/shell.css?v=10">
+    <link rel="stylesheet" href="../../assets/css/compat.css?v=10">
 </head>
-<body data-shell="admin">
+<body>
 
-<a class="skip-link" href="#main-content">Aller au contenu</a>
+<a class="skip" href="#main">Aller au contenu</a>
 
-<aside class="sidebar" id="sidebar" aria-label="Navigation principale">
-    <div class="sidebar-brand">
-        <div class="brand-icon"><i class="fas fa-calendar-check"></i></div>
-        <div class="brand-name">ReservaSalles <small>Back-office</small></div>
-    </div>
+<div class="admin">
 
-    <nav class="sidebar-nav">
-        <div class="nav-group">
-            <div class="nav-label">Général</div>
-            <a class="nav-link<?= $act('dashboard') ?>" href="index.php">
-                <i class="fas fa-gauge-high"></i><span class="nav-text">Tableau de bord</span>
+    <aside class="rail" aria-label="Navigation de l'administration">
+        <div class="rail-head">
+            <a href="index.php" class="brand">
+                <span class="brand-mark"><i class="fas fa-calendar-check"></i></span>
+                <span>ReservaSalles<small>Back-office</small></span>
             </a>
         </div>
 
-        <?php if ($estAdmin): ?>
-        <div class="nav-group">
-            <div class="nav-label">Administrateur bâtiments</div>
-            <a class="nav-link<?= $act('batiments') ?>" href="listBatiment.php"><i class="fas fa-building"></i><span class="nav-text">Bâtiments</span></a>
-            <a class="nav-link<?= $act('etages') ?>" href="listEtage.php"><i class="fas fa-layer-group"></i><span class="nav-text">Étages</span></a>
-            <a class="nav-link<?= $act('salles') ?>" href="listSalle.php"><i class="fas fa-door-open"></i><span class="nav-text">Salles</span></a>
-            <a class="nav-link<?= $act('statistiques') ?>" href="statistiques.php"><i class="fas fa-chart-column"></i><span class="nav-text">Statistiques</span></a>
-            <a class="nav-link<?= $act('rapport') ?>" href="rapport.php"><i class="fas fa-file-lines"></i><span class="nav-text">Rapports par période</span></a>
-        </div>
-        <?php endif; ?>
+        <div class="rail-scroll">
+            <div class="rail-group">
+                <h5>Général</h5>
+                <a class="<?= trim($on('dashboard')) ?>" href="index.php">
+                    <i class="fas fa-gauge-high"></i><span>Tableau de bord</span>
+                </a>
+            </div>
 
-        <div class="nav-group">
-            <div class="nav-label">Gestionnaire de réservations</div>
-            <a class="nav-link<?= $act('reservations') ?>" href="listReservation.php">
-                <i class="fas fa-calendar-check"></i><span class="nav-text">Réservations</span>
-                <?php if ($nbEnAttente > 0): ?><span class="badge badge-red"><?= $nbEnAttente ?></span><?php endif; ?>
-            </a>
-            <a class="nav-link<?= $act('reservation-manuelle') ?>" href="addReservation.php"><i class="fas fa-square-plus"></i><span class="nav-text">Réservation manuelle</span></a>
-            <a class="nav-link<?= $act('calendrier') ?>" href="calendrier.php"><i class="fas fa-calendar-days"></i><span class="nav-text">Planning global</span></a>
-            <a class="nav-link<?= $act('conflits') ?>" href="conflits.php"><i class="fas fa-triangle-exclamation"></i><span class="nav-text">Conflits</span></a>
-        </div>
+            <?php if ($estAdmin): ?>
+            <div class="rail-group">
+                <h5>Administrateur bâtiments</h5>
+                <a class="<?= trim($on('batiments')) ?>" href="listBatiment.php"><i class="fas fa-building"></i><span>Bâtiments</span></a>
+                <a class="<?= trim($on('etages')) ?>" href="listEtage.php"><i class="fas fa-layer-group"></i><span>Étages</span></a>
+                <a class="<?= trim($on('salles')) ?>" href="listSalle.php"><i class="fas fa-door-open"></i><span>Salles</span></a>
+                <a class="<?= trim($on('statistiques')) ?>" href="statistiques.php"><i class="fas fa-chart-column"></i><span>Statistiques</span></a>
+                <a class="<?= trim($on('rapport')) ?>" href="rapport.php"><i class="fas fa-file-lines"></i><span>Rapports</span></a>
+            </div>
+            <?php endif; ?>
 
-        <?php if ($estAdmin): ?>
-        <div class="nav-group">
-            <div class="nav-label">Comptes</div>
-            <a class="nav-link<?= $act('utilisateurs') ?>" href="listUtilisateur.php"><i class="fas fa-users"></i><span class="nav-text">Utilisateurs</span></a>
-        </div>
-        <?php endif; ?>
+            <div class="rail-group">
+                <h5>Gestionnaire de réservations</h5>
+                <a class="<?= trim($on('reservations')) ?>" href="listReservation.php">
+                    <i class="fas fa-calendar-check"></i><span>Réservations</span>
+                    <?php if ($nbEnAttente > 0): ?><span class="count"><?= $nbEnAttente ?></span><?php endif; ?>
+                </a>
+                <a class="<?= trim($on('reservation-manuelle')) ?>" href="addReservation.php"><i class="fas fa-square-plus"></i><span>Réservation manuelle</span></a>
+                <a class="<?= trim($on('calendrier')) ?>" href="calendrier.php"><i class="fas fa-calendar-days"></i><span>Planning global</span></a>
+                <a class="<?= trim($on('conflits')) ?>" href="conflits.php"><i class="fas fa-triangle-exclamation"></i><span>Conflits</span></a>
+            </div>
 
-        <div class="nav-group">
-            <div class="nav-label">Suivi</div>
-            <a class="nav-link<?= $act('notifications') ?>" href="notifications.php"><i class="fas fa-envelope"></i><span class="nav-text">Notifications envoyées</span></a>
-        </div>
-    </nav>
+            <?php if ($estAdmin): ?>
+            <div class="rail-group">
+                <h5>Comptes</h5>
+                <a class="<?= trim($on('utilisateurs')) ?>" href="listUtilisateur.php"><i class="fas fa-users"></i><span>Utilisateurs</span></a>
+            </div>
+            <?php endif; ?>
 
-    <div class="sidebar-footer">
-        <div class="sidebar-user">
-            <div class="avatar"><?= e($init) ?><span class="online"></span></div>
-            <div class="sidebar-user-info">
-                <div class="name"><?= e($moi['prenom'] . ' ' . $moi['nom']) ?></div>
-                <div class="role"><?= e(libelle_role($moi['role'])) ?></div>
+            <div class="rail-group">
+                <h5>Suivi</h5>
+                <a class="<?= trim($on('notifications')) ?>" href="notifications.php"><i class="fas fa-envelope"></i><span>Notifications</span></a>
             </div>
         </div>
-    </div>
-</aside>
 
-<header class="topbar">
-    <div class="topbar-left">
-        <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Menu" aria-controls="sidebar"><i class="fas fa-bars"></i></button>
-        <nav class="breadcrumb" aria-label="Fil d'Ariane">
-            <a href="index.php">Accueil</a><span class="sep" aria-hidden="true">›</span><span class="current"><?= e($titrePage) ?></span>
-        </nav>
-    </div>
-    <div class="topbar-right">
-        <a class="tb-btn tb-docs" href="../frontend/index.php" title="Voir le site"><i class="fas fa-globe"></i> <span>Voir le site</span></a>
-        <a class="tb-btn tb-docs tb-logout" href="../frontend/logout.php" title="Se déconnecter"><i class="fas fa-right-from-bracket"></i> <span>Déconnexion</span></a>
-    </div>
-</header>
+        <div class="rail-foot">
+            <span class="avatar"><?= e($init) ?></span>
+            <span class="who">
+                <b><?= e($moi['prenom'] . ' ' . $moi['nom']) ?></b>
+                <span><?= e(libelle_role($moi['role'])) ?></span>
+            </span>
+            <a class="out" href="../frontend/logout.php" title="Se déconnecter" aria-label="Se déconnecter">
+                <i class="fas fa-right-from-bracket"></i>
+            </a>
+        </div>
+    </aside>
 
-<main id="main-content" class="main" tabindex="-1">
-<div class="page-wrapper">
+    <div class="main">
+        <header class="topbar">
+            <button class="btn btn-ghost btn-icon rail-toggle" type="button" data-rail
+                    aria-label="Afficher ou masquer le menu"><i class="fas fa-bars"></i></button>
+            <button class="btn btn-ghost btn-icon hide-mobile" type="button" data-rail
+                    aria-label="Replier le menu" title="Replier le menu"><i class="fas fa-bars-staggered"></i></button>
+
+            <h1><?= e($titrePage) ?></h1>
+
+            <div class="push">
+                <button class="searchbox" type="button" data-cmdk>
+                    <i class="fas fa-magnifying-glass"></i>
+                    <span>Rechercher…</span>
+                    <kbd>Ctrl</kbd><kbd>K</kbd>
+                </button>
+                <button class="theme-btn" type="button" aria-label="Changer de thème">
+                    <i class="fas fa-sun i-sun"></i><i class="fas fa-moon i-moon"></i>
+                </button>
+                <a class="btn btn-sm" href="../frontend/index.php" title="Voir le site public">
+                    <i class="fas fa-globe"></i> <span class="hide-mobile">Voir le site</span>
+                </a>
+            </div>
+        </header>
+
+        <main id="main" class="content" tabindex="-1">

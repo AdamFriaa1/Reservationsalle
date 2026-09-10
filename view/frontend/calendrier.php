@@ -6,15 +6,15 @@ $batimentC    = new BatimentC();
 $reservationC = new ReservationC();
 
 // ---- Paramètres du calendrier ----
-$mois   = (int)($_GET['mois']  ?? date('n'));
-$annee  = (int)($_GET['annee'] ?? date('Y'));
+$mois  = (int)($_GET['mois']  ?? date('n'));
+$annee = (int)($_GET['annee'] ?? date('Y'));
 if ($mois < 1)  { $mois = 12; $annee--; }
 if ($mois > 12) { $mois = 1;  $annee++; }
 if ($annee < 2020 || $annee > 2100) { $annee = (int)date('Y'); }
 
-$idSalle    = isset($_GET['salle']) && ctype_digit((string)$_GET['salle']) ? (int)$_GET['salle'] : null;
+$idSalle    = isset($_GET['salle'])    && ctype_digit((string)$_GET['salle'])    ? (int)$_GET['salle']    : null;
 $idBatiment = isset($_GET['batiment']) && ctype_digit((string)$_GET['batiment']) ? (int)$_GET['batiment'] : null;
-$jour       = $_GET['jour'] ?? null;
+$jour       = (isset($_GET['jour']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['jour'])) ? $_GET['jour'] : null;
 
 $erreur = '';
 try {
@@ -22,21 +22,84 @@ try {
     $batiments    = $batimentC->showBatiments();
     $reservations = $reservationC->getCalendrierMois($annee, $mois, $idSalle, $idBatiment);
     $salleActive  = $idSalle !== null ? $salleC->getSalle($idSalle) : null;
-    $creneaux     = ($salleActive !== null && $jour !== null)
-        ? $reservationC->getCreneauxJour($salleActive, $jour) : [];
 } catch (Throwable $e) {
     $erreur = 'Erreur lors du chargement du calendrier : ' . $e->getMessage();
-    $salles = []; $batiments = []; $reservations = []; $salleActive = null; $creneaux = [];
+    $salles = []; $batiments = []; $reservations = []; $salleActive = null;
+}
+
+/* ---------------------------------------------------------------------
+   Occupation d'une journée.
+
+   La même mesure sert qu'une salle soit sélectionnée ou non : minutes
+   réservées ÷ minutes d'ouverture disponibles. Sans salle choisie, le
+   dénominateur additionne les heures d'ouverture de toutes les salles
+   affichées — le voyant garde donc exactement le même sens dans les deux cas.
+
+   L'étiquette porte toujours un nombre concret (« 2 réunions ») plutôt qu'un
+   simple mot : même un jour peu chargé reste lisible d'un coup d'œil.
+   --------------------------------------------------------------------- */
+function minutesOuverture(array $salle): float
+{
+    $ouverture = strtotime('1970-01-01 ' . $salle['heure_ouverture']);
+    $fermeture = strtotime('1970-01-01 ' . $salle['heure_fermeture']);
+    return max(1, ($fermeture - $ouverture) / 60);
+}
+
+/** @return array{0:string,1:string,2:int,3:string} classe, étiquette, segments, détail */
+function occupationJour(array $duJour, float $capaciteMinutes): array
+{
+    $minutes = 0;
+    $nb      = 0;
+    foreach ($duJour as $r) {
+        if (!in_array($r['statut'], ['en_attente', 'validee', 'terminee'], true)) continue;
+        $nb++;
+        $minutes += max(0, (strtotime($r['date_fin']) - strtotime($r['date_debut'])) / 60);
+    }
+
+    if ($nb === 0) {
+        return ['libre', 'Libre', 1, 'Aucune réservation'];
+    }
+
+    // Des réservations qui se chevauchent comptent leurs minutes deux fois :
+    // on plafonne à 100 % pour ne pas afficher un taux absurde.
+    $ratio = $capaciteMinutes > 0 ? min(1, $minutes / $capaciteMinutes) : 0;
+
+    // Seuils réellement atteignables : une salle occupée à 35 % de sa journée
+    // se remplit, à 85 % il ne reste que des miettes.
+    if      ($ratio >= 0.85) { $cls = 'full'; $seg = 3; }
+    elseif  ($ratio >= 0.35) { $cls = 'busy'; $seg = 2; }
+    else                     { $cls = 'libre'; $seg = 1; }
+
+    $mot = $cls === 'full' ? 'Complet' : $nb . ' réunion' . ($nb > 1 ? 's' : '');
+
+    $detail = $nb . ' réunion' . ($nb > 1 ? 's' : '')
+            . ' · ' . fmt_minutes((int)round($minutes)) . ' occupées sur '
+            . fmt_minutes((int)round($capaciteMinutes))
+            . ' (' . round($ratio * 100) . ' %)';
+
+    return [$cls, $mot, $seg, $detail];
+}
+
+/* Capacité de référence : la salle choisie, sinon toutes les salles listées. */
+$capaciteMinutes = 0;
+if ($salleActive !== null) {
+    $capaciteMinutes = minutesOuverture($salleActive);
+} else {
+    foreach ($salles as $s) {
+        if ($idBatiment !== null && (int)$s['id_batiment'] !== $idBatiment) continue;
+        $capaciteMinutes += minutesOuverture($s);
+    }
+    $capaciteMinutes = max(1, $capaciteMinutes);
 }
 
 // ---- Construction de la grille ----
-$premierJour   = mktime(0, 0, 0, $mois, 1, $annee);
-$nbJours       = (int)date('t', $premierJour);
-$decalage      = ((int)date('N', $premierJour)) - 1;   // lundi = 0
-$aujourdhui    = date('Y-m-d');
+$premierJour = mktime(0, 0, 0, $mois, 1, $annee);
+$nbJours     = (int)date('t', $premierJour);
+$decalage    = ((int)date('N', $premierJour)) - 1;   // lundi = 0
+$aujourdhui  = date('Y-m-d');
 
-$moisPrecedent = ['mois' => $mois === 1 ? 12 : $mois - 1, 'annee' => $mois === 1 ? $annee - 1 : $annee];
-$moisSuivant   = ['mois' => $mois === 12 ? 1 : $mois + 1, 'annee' => $mois === 12 ? $annee + 1 : $annee];
+$moisPrec = ['mois' => $mois === 1  ? 12 : $mois - 1, 'annee' => $mois === 1  ? $annee - 1 : $annee];
+$moisSuiv = ['mois' => $mois === 12 ? 1  : $mois + 1, 'annee' => $mois === 12 ? $annee + 1 : $annee];
 
 /** Conserve les filtres actifs dans les liens de navigation. */
 function lienCal(array $params, ?int $idSalle, ?int $idBatiment): string
@@ -46,170 +109,175 @@ function lienCal(array $params, ?int $idSalle, ?int $idBatiment): string
     return 'calendrier.php?' . http_build_query($params);
 }
 
-$titrePage  = 'Calendrier';
+$titrePage  = 'Disponibilités';
 $pageActive = 'calendrier';
 require __DIR__ . '/partials/header.php';
 ?>
 
-<div class="page container">
-
-    <div class="page-header">
-        <h1><i class="fas fa-calendar-days"></i> Calendrier des disponibilités</h1>
-        <p>Cliquez sur une journée pour voir les créneaux libres de la salle sélectionnée.</p>
+<div class="page-head">
+    <div>
+        <span class="eyebrow">Planning</span>
+        <h1 class="mt-2">Calendrier des disponibilités</h1>
+        <p>
+            <?= $salleActive !== null
+                ? e($salleActive['nom'] . ' — cliquez sur une journée pour voir ses créneaux.')
+                : 'Toutes salles confondues. Choisissez une salle pour son planning détaillé.' ?>
+        </p>
     </div>
-
-    <?php flash_afficher(); ?>
-    <?php if ($erreur !== ''): ?>
-        <div class="alert alert-danger"><i class="fas fa-circle-exclamation"></i><span><?= e($erreur) ?></span></div>
-    <?php endif; ?>
-
-    <form method="get" class="filtres">
-        <input type="hidden" name="mois" value="<?= $mois ?>">
-        <input type="hidden" name="annee" value="<?= $annee ?>">
-        <div class="filtres-grid">
-            <div class="form-group">
-                <label for="batiment">Bâtiment</label>
-                <select id="batiment" name="batiment" onchange="this.form.submit()">
-                    <option value="">Tous les bâtiments</option>
-                    <?php foreach ($batiments as $b): ?>
-                        <option value="<?= (int)$b['id_batiment'] ?>" <?= $idBatiment === (int)$b['id_batiment'] ? 'selected' : '' ?>>
-                            <?= e($b['nom']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="salle">Salle</label>
-                <select id="salle" name="salle" onchange="this.form.submit()">
-                    <option value="">Toutes les salles</option>
-                    <?php foreach ($salles as $s): ?>
-                        <?php if ($idBatiment !== null && (int)$s['id_batiment'] !== $idBatiment) continue; ?>
-                        <option value="<?= (int)$s['id_salle'] ?>" <?= $idSalle === (int)$s['id_salle'] ? 'selected' : '' ?>>
-                            <?= e($s['nom']) ?> — <?= e($s['code_salle']) ?> (<?= (int)$s['capacite'] ?> pl.)
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>&nbsp;</label>
-                <a href="calendrier.php" class="btn btn-light"><i class="fas fa-rotate-left"></i> Réinitialiser</a>
-            </div>
-        </div>
-    </form>
-
-    <div class="cal-nav">
-        <div class="d-flex gap-2 align-center">
-            <a href="<?= e(lienCal($moisPrecedent, $idSalle, $idBatiment)) ?>" class="btn btn-light btn-icon">
-                <i class="fas fa-chevron-left"></i>
+    <div class="row g-2 wrapf">
+        <a href="salles.php" class="btn"><i class="fas fa-door-open"></i> Catalogue</a>
+        <?php if (est_connecte() && $salleActive !== null): ?>
+            <a href="reserver.php?salle=<?= (int)$salleActive['id_salle'] ?>" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Réserver cette salle
             </a>
-            <span class="cal-titre"><?= e(MOIS_FR[$mois] . ' ' . $annee) ?></span>
-            <a href="<?= e(lienCal($moisSuivant, $idSalle, $idBatiment)) ?>" class="btn btn-light btn-icon">
-                <i class="fas fa-chevron-right"></i>
-            </a>
-        </div>
-        <a href="<?= e(lienCal(['mois' => (int)date('n'), 'annee' => (int)date('Y')], $idSalle, $idBatiment)) ?>"
-           class="btn btn-light btn-sm"><i class="fas fa-calendar-day"></i> Ce mois-ci</a>
+        <?php endif; ?>
+    </div>
+</div>
+
+<?php flash_afficher(); ?>
+<?php if ($erreur !== ''): ?>
+    <div class="alert alert-bad"><i class="fas fa-circle-exclamation"></i><span><?= e($erreur) ?></span></div>
+<?php endif; ?>
+
+<!-- ============================================== BARRE D'OUTILS -->
+<form method="get" class="cal-tools" id="formCal">
+    <input type="hidden" name="mois"  value="<?= $mois ?>">
+    <input type="hidden" name="annee" value="<?= $annee ?>">
+
+    <div class="cal-month">
+        <a class="btn btn-ghost btn-icon" href="<?= e(lienCal($moisPrec, $idSalle, $idBatiment)) ?>"
+           aria-label="Mois précédent"><i class="fas fa-chevron-left"></i></a>
+        <span class="lbl"><?= e(mb_strtolower(MOIS_FR[$mois]) . ' ' . $annee) ?></span>
+        <a class="btn btn-ghost btn-icon" href="<?= e(lienCal($moisSuiv, $idSalle, $idBatiment)) ?>"
+           aria-label="Mois suivant"><i class="fas fa-chevron-right"></i></a>
     </div>
 
-    <div class="calendrier">
-        <div class="cal-entete">
-            <div>Lun</div><div>Mar</div><div>Mer</div><div>Jeu</div>
-            <div>Ven</div><div>Sam</div><div>Dim</div>
-        </div>
-        <div class="cal-grille">
-            <?php for ($i = 0; $i < $decalage; $i++): ?>
-                <div class="cal-jour vide"></div>
-            <?php endfor; ?>
+    <a class="btn btn-sm" href="<?= e(lienCal(['mois' => (int)date('n'), 'annee' => (int)date('Y')], $idSalle, $idBatiment)) ?>">
+        <i class="fas fa-calendar-day"></i> Aujourd'hui
+    </a>
 
-            <?php for ($j = 1; $j <= $nbJours; $j++):
-                $dateJour  = sprintf('%04d-%02d-%02d', $annee, $mois, $j);
-                $duJour    = $reservations[$dateJour] ?? [];
-                $classes   = 'cal-jour';
-                if ($dateJour === $aujourdhui)  $classes .= ' aujourdhui';
-                if ($dateJour < $aujourdhui)    $classes .= ' passe';
-                if ($jour === $dateJour)        $classes .= ' selection';
-            ?>
-                <div class="<?= $classes ?>" data-date="<?= e($dateJour) ?>">
-                    <div class="cal-num"><?= $j ?></div>
-                    <?php foreach (array_slice($duJour, 0, 2) as $r): ?>
-                        <div class="cal-event <?= e($r['statut']) ?>"
-                             title="<?= e($r['titre'] . ' — ' . $r['nom_salle'] . ' (' . fmt_heure($r['date_debut']) . '–' . fmt_heure($r['date_fin']) . ')') ?>">
-                            <?= e(fmt_heure($r['date_debut'])) ?> <?= e($r['nom_salle']) ?>
-                        </div>
-                    <?php endforeach; ?>
-                    <?php if (count($duJour) > 2): ?>
-                        <div class="cal-plus">+<?= count($duJour) - 2 ?> autre<?= count($duJour) - 2 > 1 ? 's' : '' ?></div>
-                    <?php endif; ?>
-                </div>
-            <?php endfor; ?>
-        </div>
+    <label class="row g-2 t-sm push" style="font-weight:600;color:var(--ink-600)">
+        Bâtiment
+        <select name="batiment" onchange="this.form.submit()" style="width:auto;min-width:158px">
+            <option value="">Tous</option>
+            <?php foreach ($batiments as $b): ?>
+                <option value="<?= (int)$b['id_batiment'] ?>" <?= $idBatiment === (int)$b['id_batiment'] ? 'selected' : '' ?>>
+                    <?= e($b['nom']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </label>
+
+    <label class="row g-2 t-sm" style="font-weight:600;color:var(--ink-600)">
+        Salle
+        <select name="salle" id="selSalle" onchange="this.form.submit()" style="width:auto;min-width:210px">
+            <option value="">— Choisir une salle —</option>
+            <?php foreach ($salles as $s): ?>
+                <?php if ($idBatiment !== null && (int)$s['id_batiment'] !== $idBatiment) continue; ?>
+                <option value="<?= (int)$s['id_salle'] ?>" <?= $idSalle === (int)$s['id_salle'] ? 'selected' : '' ?>>
+                    <?= e($s['nom']) ?> — <?= e($s['code_salle']) ?> (<?= (int)$s['capacite'] ?> pl.)
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </label>
+</form>
+
+<?php if ($salleActive === null): ?>
+    <div class="alert alert-info">
+        <i class="fas fa-circle-info"></i>
+        <span>Sélectionnez une salle ci-dessus : le calendrier affichera alors son taux
+              d'occupation jour par jour, et vous pourrez choisir un créneau.</span>
     </div>
+<?php endif; ?>
 
-    <div class="legende">
-        <span><i style="background:#16a34a"></i> Réservation validée</span>
-        <span><i style="background:#f59e0b"></i> En attente de validation</span>
-        <span><i style="background:#cbd5e1"></i> Terminée</span>
-    </div>
+<!-- ============================================== CALENDRIER + CRÉNEAUX -->
+<div class="cal-split">
 
-    <div class="card mt-3" style="margin-top:28px;">
-        <div class="card-header">
-            <h2><i class="fas fa-clock"></i> Créneaux de la journée</h2>
-            <?php if ($salleActive !== null): ?>
-                <span class="badge badge-info">
-                    <?= e($salleActive['nom']) ?> · <?= (int)$salleActive['capacite'] ?> places ·
-                    <?= e(substr($salleActive['heure_ouverture'], 0, 5)) ?>–<?= e(substr($salleActive['heure_fermeture'], 0, 5)) ?>
-                </span>
-            <?php endif; ?>
-        </div>
-        <div class="card-body">
-            <div id="zoneCreneaux">
-                <?php if ($salleActive === null): ?>
-                    <p class="text-muted">
-                        <i class="fas fa-circle-info"></i>
-                        Choisissez d'abord une salle dans les filtres ci-dessus, puis cliquez sur une journée.
-                    </p>
-                <?php elseif (!$creneaux): ?>
-                    <p class="text-muted">
-                        <i class="fas fa-circle-info"></i> Cliquez sur une journée du calendrier
-                        pour afficher les créneaux de <strong><?= e($salleActive['nom']) ?></strong>.
-                    </p>
-                <?php else: ?>
-                    <div class="creneaux">
-                        <?php foreach ($creneaux as $c): ?>
-                            <div class="creneau <?= $c['passe'] ? 'passe' : ($c['occupe'] ? 'occupe' : 'libre') ?>">
-                                <?= e($c['debut']) ?>
-                                <small><?= $c['passe'] ? 'Passé' : ($c['occupe'] ? 'Occupé' : 'Libre') ?></small>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
+    <div>
+        <div class="cal">
+            <div class="cal-dow" aria-hidden="true">
+                <div>Lun</div><div>Mar</div><div>Mer</div><div>Jeu</div><div>Ven</div><div>Sam</div><div>Dim</div>
             </div>
+            <div class="cal-days" id="calGrille">
+                <?php for ($i = 0; $i < $decalage; $i++): ?>
+                    <div class="day void" aria-hidden="true"></div>
+                <?php endfor; ?>
 
-            <?php if ($salleActive !== null && est_connecte()): ?>
-                <div class="mt-3">
-                    <a href="reserver.php?salle=<?= (int)$salleActive['id_salle'] ?><?= $jour ? '&jour=' . e($jour) : '' ?>"
-                       class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Réserver cette salle
-                    </a>
-                </div>
-            <?php elseif ($salleActive !== null): ?>
-                <div class="alert alert-info mt-3" style="margin-top:20px;">
-                    <i class="fas fa-circle-info"></i>
-                    <span><a href="login.php">Connectez-vous</a> pour réserver cette salle.</span>
-                </div>
-            <?php endif; ?>
+                <?php for ($j = 1; $j <= $nbJours; $j++):
+                    $dateJour = sprintf('%04d-%02d-%02d', $annee, $mois, $j);
+                    $duJour   = $reservations[$dateJour] ?? [];
+                    $passe    = $dateJour < $aujourdhui;
+                    [$cls, $mot, $segments, $detail] = occupationJour($duJour, $capaciteMinutes);
+
+                    $classes = 'day';
+                    if ($passe)                     $classes .= ' past';
+                    if ($dateJour === $aujourdhui)  $classes .= ' today';
+                    if ($jour === $dateJour)        $classes .= ' pick';
+                ?>
+                    <button type="button" class="<?= $classes ?>" data-date="<?= e($dateJour) ?>"
+                            <?= $passe ? 'disabled' : '' ?>
+                            title="<?= e(fmt_date($dateJour) . ' — ' . $detail) ?>"
+                            aria-label="<?= e(fmt_date($dateJour) . ($passe ? ' (passé)' : ' — ' . $detail)) ?>">
+                        <span class="n"><?= $j ?></span>
+                        <?php if (!$passe): ?>
+                            <span class="lvl"><?= e($mot) ?></span>
+                            <span class="gauge" aria-hidden="true">
+                                <?php for ($k = 0; $k < 3; $k++): ?>
+                                    <i class="<?= $k < $segments ? e($cls) : '' ?>"></i>
+                                <?php endfor; ?>
+                            </span>
+                        <?php endif; ?>
+                    </button>
+                <?php endfor; ?>
+            </div>
+        </div>
+
+        <div class="legend">
+            <span><i style="background:var(--ok-500)"></i> Moins d'un tiers occupé</span>
+            <span><i style="background:var(--warn-500)"></i> Se remplit</span>
+            <span><i style="background:var(--bad-500)"></i> Complet</span>
+            <span><i style="background:var(--line)"></i> Journée passée</span>
+            <span class="dim">Survolez une journée pour le détail.</span>
+        </div>
+    </div>
+
+    <div class="card slots-panel">
+        <div class="slots-head">
+            <h3 id="calTitre">Aucune journée choisie</h3>
+            <div class="sub" id="calSousTitre">
+                <?= $salleActive !== null
+                    ? e($salleActive['nom'] . ' · ' . (int)$salleActive['capacite'] . ' places · '
+                        . substr($salleActive['heure_ouverture'], 0, 5) . '–' . substr($salleActive['heure_fermeture'], 0, 5))
+                    : 'Aucune salle sélectionnée' ?>
+            </div>
+        </div>
+        <div class="slots-body" id="calSlots">
+            <div class="empty" style="padding:38px 12px">
+                <span class="empty-icon"><i class="fas fa-calendar-day"></i></span>
+                <p class="muted t-sm">
+                    <?= $salleActive !== null
+                        ? 'Cliquez sur une journée du calendrier.'
+                        : 'Choisissez une salle puis une journée.' ?>
+                </p>
+            </div>
         </div>
     </div>
 </div>
 
 <?php require __DIR__ . '/partials/footer.php'; ?>
 
-<script src="assets/js/calendrier.js"></script>
+<script src="../../assets/js/calendrier.js?v=10"></script>
 <script>
 Calendrier.init({
-    salleId: <?= $idSalle !== null ? (int)$idSalle : 'null' ?>,
-    urlAjax: 'ajax/disponibilites.php',
-    zoneCreneaux: 'zoneCreneaux',
-    selecteurSalle: 'salle'
+    salleId:        <?= $idSalle !== null ? (int)$idSalle : 'null' ?>,
+    jour:           <?= $jour !== null ? json_encode($jour) : 'null' ?>,
+    urlAjax:        'ajax/disponibilites.php',
+    grille:         'calGrille',
+    zone:           'calSlots',
+    titre:          'calTitre',
+    sousTitre:      'calSousTitre',
+    selecteurSalle: 'selSalle',
+    urlReserver:    'reserver.php',
+    connecte:       <?= est_connecte() ? 'true' : 'false' ?>
 });
 </script>

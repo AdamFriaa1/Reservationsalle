@@ -69,10 +69,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Créer un compte — ReservaSalles</title>
+    <meta name="theme-color" content="#2454ff">
+    <title>Créer un compte · ReservaSalles</title>
+    <script>
+        (function () {
+            document.documentElement.classList.add('js');
+            try {
+                var t = localStorage.getItem('rs2-theme');
+                if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+                if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches))
+                    document.documentElement.classList.add('theme-dark');
+            } catch (e) {}
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="assets/css/front.css?v=7">
+    <link rel="stylesheet" href="../../assets/css/app.css?v=10">
+    <link rel="stylesheet" href="../../assets/css/shell.css?v=10">
+    <link rel="stylesheet" href="../../assets/css/compat.css?v=10">
 </head>
 <body>
 
@@ -94,7 +109,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <div class="auth-form-wrap">
-        <div class="auth-form">
+        <div class="auth-form enter">
+            <div class="row-between mb-5">
+                <a href="index.php" class="btn btn-ghost btn-sm"><i class="fas fa-arrow-left"></i> Accueil</a>
+                <button class="theme-btn" type="button" aria-label="Changer de thème">
+                    <i class="fas fa-sun i-sun"></i><i class="fas fa-moon i-moon"></i>
+                </button>
+            </div>
             <h1>Créer un compte</h1>
             <p>Quelques informations et c'est terminé.</p>
 
@@ -171,7 +192,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
-<script src="assets/js/validation.js"></script>
+<script src="../../assets/js/valider.js?v=10"></script>
+<script src="../../assets/js/app.js?v=10"></script>
 <script>
 Valider.attacher('formInscription', {
     prenom: [

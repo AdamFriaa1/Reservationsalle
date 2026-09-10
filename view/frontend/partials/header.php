@@ -1,97 +1,98 @@
 <?php
 /**
- * En-tête du FrontOffice — intègre la template réelle GENTELELLA (ColorlibHQ, MIT,
- * sans framework), vendorisée dans /assets/gentelella/. Shell Gentelella + composants
- * métier (front.css). Variables attendues : $titrePage, $pageActive
+ * En-tête du FrontOffice — ReservaSalles 2
+ * Coque « site produit » : barre supérieure glacée, pas de rail latéral.
+ * Variables attendues : $titrePage, $pageActive
+ * Optionnel : $pleineLargeur = true  (la page gère elle-même ses .wrap)
  */
-$titrePage  = $titrePage  ?? 'Réservation de salles';
-$pageActive = $pageActive ?? '';
-$moi        = utilisateur_courant();
-$connecte   = est_connecte();
-$gtl        = '../../assets/gentelella';
-$act = fn(string $p): string => $pageActive === $p ? ' active' : '';
+$titrePage     = $titrePage  ?? 'Réservation de salles';
+$pageActive    = $pageActive ?? '';
+$pleineLargeur = $pleineLargeur ?? false;
+$moi           = utilisateur_courant();
+$connecte      = est_connecte();
+$on            = fn(string $p): string => $pageActive === $p ? ' class="on"' : '';
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= e($titrePage) ?> — ReservaSalles</title>
+    <meta name="description" content="ReservaSalles — réservez une salle de réunion en quelques secondes : disponibilités en temps réel, validation par un gestionnaire, notifications par email.">
+    <meta name="theme-color" content="#2454ff">
+    <title><?= e($titrePage) ?> · ReservaSalles</title>
+
+    <script>
+        /* Posé avant le rendu : évite tout clignotement de thème. */
+        (function () {
+            document.documentElement.classList.add('js');
+            try {
+                var t = localStorage.getItem('rs2-theme');
+                if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+                var sombre = t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (sombre) document.documentElement.classList.add('theme-dark');
+            } catch (e) {}
+        })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap">
-    <!-- Template réelle Gentelella (MIT) -->
-    <link rel="stylesheet" href="<?= $gtl ?>/assets/main-v4-pXJJcGAu.css">
-    <!-- Composants métier ReservaSalles -->
-    <link rel="stylesheet" href="assets/css/front.css?v=8">
+    <link rel="stylesheet" href="../../assets/css/app.css?v=10">
+    <link rel="stylesheet" href="../../assets/css/shell.css?v=10">
+    <link rel="stylesheet" href="../../assets/css/compat.css?v=10">
 </head>
-<body data-shell="admin">
+<body>
 
-<a class="skip-link" href="#main-content">Aller au contenu</a>
+<a class="skip" href="#main">Aller au contenu</a>
 
-<aside class="sidebar" id="sidebar" aria-label="Navigation principale">
-    <a href="index.php" class="sidebar-brand">
-        <div class="brand-icon"><i class="fas fa-calendar-check"></i></div>
-        <div class="brand-name">ReservaSalles <small>Réservation de salles</small></div>
-    </a>
+<header class="site-nav" id="siteNav">
+    <div class="wrap">
+        <a href="index.php" class="brand">
+            <span class="brand-mark"><i class="fas fa-calendar-check"></i></span>
+            <span>ReservaSalles<small>Espaces &amp; réunions</small></span>
+        </a>
 
-    <nav class="sidebar-nav">
-        <div class="nav-group">
-            <div class="nav-label">Navigation</div>
-            <a class="nav-link<?= $act('accueil') ?>" href="index.php"><i class="fas fa-house"></i><span class="nav-text">Accueil</span></a>
-            <a class="nav-link<?= $act('salles') ?>" href="salles.php"><i class="fas fa-door-open"></i><span class="nav-text">Les salles</span></a>
-            <a class="nav-link<?= $act('calendrier') ?>" href="calendrier.php"><i class="fas fa-calendar-days"></i><span class="nav-text">Calendrier</span></a>
-        </div>
-
-        <?php if ($connecte): ?>
-        <div class="nav-group">
-            <div class="nav-label">Mes réservations</div>
-            <a class="nav-link<?= $act('reserver') ?>" href="reserver.php"><i class="fas fa-plus"></i><span class="nav-text">Réserver</span></a>
-            <a class="nav-link<?= $act('mes-reservations') ?>" href="mesReservations.php"><i class="fas fa-clock-rotate-left"></i><span class="nav-text">Mes réservations</span></a>
-        </div>
-            <?php if (in_array($moi['role'], ['admin', 'gestionnaire'], true)): ?>
-            <div class="nav-group">
-                <div class="nav-label">Administration</div>
-                <a class="nav-link" href="../backend/index.php"><i class="fas fa-gauge-high"></i><span class="nav-text">Back-office</span></a>
-            </div>
+        <nav class="site-links" aria-label="Navigation principale">
+            <a href="index.php"<?= $on('accueil') ?>>Accueil</a>
+            <a href="salles.php"<?= $on('salles') ?>>Les salles</a>
+            <a href="calendrier.php"<?= $on('calendrier') ?>>Disponibilités</a>
+            <?php if ($connecte): ?>
+                <a href="mesReservations.php"<?= $on('mes-reservations') ?>>Mes réservations</a>
             <?php endif; ?>
-        <?php else: ?>
-        <div class="nav-group">
-            <div class="nav-label">Compte</div>
-            <a class="nav-link<?= $act('login') ?>" href="login.php"><i class="fas fa-right-to-bracket"></i><span class="nav-text">Connexion</span></a>
-            <a class="nav-link<?= $act('register') ?>" href="register.php"><i class="fas fa-user-plus"></i><span class="nav-text">Inscription</span></a>
-        </div>
-        <?php endif; ?>
-    </nav>
-
-    <?php if ($connecte): ?>
-    <div class="sidebar-footer">
-        <div class="sidebar-user">
-            <div class="avatar"><?= e(mb_strtoupper(mb_substr($moi['prenom'], 0, 1) . mb_substr($moi['nom'], 0, 1))) ?><span class="online"></span></div>
-            <div class="sidebar-user-info">
-                <div class="name"><?= e($moi['prenom'] . ' ' . $moi['nom']) ?></div>
-                <div class="role"><?= e(libelle_role($moi['role'])) ?></div>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-</aside>
-
-<header class="topbar">
-    <div class="topbar-left">
-        <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Menu" aria-controls="sidebar"><i class="fas fa-bars"></i></button>
-        <nav class="breadcrumb" aria-label="Fil d'Ariane">
-            <a href="index.php">Accueil</a><span class="sep" aria-hidden="true">›</span><span class="current"><?= e($titrePage) ?></span>
         </nav>
-    </div>
-    <div class="topbar-right">
-        <?php if ($connecte): ?>
-            <a class="tb-btn tb-docs tb-logout" href="logout.php" title="Se déconnecter"><i class="fas fa-right-from-bracket"></i> <span>Déconnexion</span></a>
-        <?php else: ?>
-            <a class="tb-btn tb-docs" href="login.php"><i class="fas fa-right-to-bracket"></i> <span>Connexion</span></a>
-            <a class="btn btn-primary btn-sm" href="register.php"><i class="fas fa-user-plus"></i> Inscription</a>
-        <?php endif; ?>
+
+        <div class="nav-tools">
+            <button class="btn btn-ghost btn-icon" type="button" data-cmdk
+                    aria-label="Recherche rapide (Ctrl+K)" title="Recherche rapide — Ctrl+K">
+                <i class="fas fa-magnifying-glass"></i>
+            </button>
+            <button class="theme-btn" type="button" aria-label="Changer de thème">
+                <i class="fas fa-sun i-sun"></i><i class="fas fa-moon i-moon"></i>
+            </button>
+
+            <?php if ($connecte): ?>
+                <a href="reserver.php" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> Réserver
+                </a>
+                <?php if (in_array($moi['role'], ['admin', 'gestionnaire'], true)): ?>
+                    <a href="../backend/index.php" class="btn btn-sm" title="Back-office">
+                        <i class="fas fa-gauge-high"></i>
+                    </a>
+                <?php endif; ?>
+                <a href="logout.php" class="btn btn-ghost btn-icon" title="Se déconnecter"
+                   aria-label="Se déconnecter"><i class="fas fa-right-from-bracket"></i></a>
+                <span class="avatar" title="<?= e($moi['prenom'] . ' ' . $moi['nom'] . ' — ' . libelle_role($moi['role'])) ?>">
+                    <?= e(mb_strtoupper(mb_substr($moi['prenom'], 0, 1) . mb_substr($moi['nom'], 0, 1))) ?>
+                </span>
+            <?php else: ?>
+                <a href="login.php" class="btn btn-ghost btn-sm">Connexion</a>
+                <a href="register.php" class="btn btn-primary btn-sm">Créer un compte</a>
+            <?php endif; ?>
+        </div>
     </div>
 </header>
 
-<main id="main-content" class="main" tabindex="-1">
-<div class="page-wrapper">
+<main id="main" tabindex="-1">
+<?php if (!$pleineLargeur): ?>
+<div class="wrap" style="padding-block: var(--s-7) var(--s-8)">
+<?php endif; ?>

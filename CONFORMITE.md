@@ -1,9 +1,7 @@
-# Conformité au cahier des charges — ReservaSalles
+# Conformité au cahier des charges
 
-Projet « Technologies Web » — système de réservation de salles en PHP 8, MVC, PDO, sans framework.
-Chaque exigence de l'énoncé est mise en regard du code qui la réalise, avec le résultat des tests.
-
-Dernière vérification : 9 septembre 2026 — PHP 8.2.12, MySQL (XAMPP).
+Chaque exigence de l'énoncé est mise en regard du code qui la réalise, avec le
+résultat des tests. Dernière vérification : 10 septembre 2026 — PHP 8.2, MySQL (XAMPP).
 
 ---
 
@@ -11,18 +9,18 @@ Dernière vérification : 9 septembre 2026 — PHP 8.2.12, MySQL (XAMPP).
 
 | Exigence | État | Où c'est fait |
 |---|---|---|
-| Développé en **PHP 8** | ✅ | Testé sous PHP 8.2.12 (`str_ends_with`, `enum`, types nullables, `finfo`). |
+| Développé en **PHP 8** | ✅ | Testé sous PHP 8.2 (`match`, `str_ends_with`, types nullables, `finfo`). |
 | Structure **MVC** | ✅ | `model/` (5 entités), `controller/` (6 contrôleurs), `view/` (front + back). Bootstrap commun `init.php`. |
-| **PDO uniquement**, pas de MySQLi | ✅ | `config.php` : singleton `PDO`, `ERRMODE_EXCEPTION`. Recherche `mysqli` / `mysql_*` dans tout le code → **0 occurrence**. Requêtes **préparées** partout. |
-| **CRUD** sur toutes les entités | ✅ | `add* / update* / delete* / list*` pour Bâtiment, Étage, Salle, Utilisateur, Réservation (back-office). |
-| Contrôles de saisie **JS + PHP**, pas de HTML | ✅ | Côté client `assets/js/validation.js` (objet `Valider`) ; côté serveur `init.php` (`v_requis`, `v_longueur`, `v_entier`, `v_email`, `v_datetime`…). Les 20 formulaires sont en `novalidate` ; **aucun attribut `required`** natif. |
+| **PDO uniquement**, pas de MySQLi | ✅ | `config.php` : singleton `PDO`, `ERRMODE_EXCEPTION`. Recherche `mysqli` dans tout le code → **0 occurrence**. Requêtes **préparées** partout. |
+| **CRUD** sur toutes les entités | ✅ | `add* / update* / delete* / list*` pour Bâtiment, Étage, Salle, Utilisateur, Réservation. |
+| Contrôles de saisie **JS + PHP**, pas de HTML | ✅ | Client : `assets/js/valider.js` (objet `Valider`). Serveur : `init.php` (`v_requis`, `v_longueur`, `v_entier`, `v_email`, `v_datetime`…). Tous les formulaires sont en `novalidate` ; **aucun attribut `required`**. |
 | **Jointures** entre tables | ✅ | `SalleC::SELECT_BASE` : salle ⋈ étage ⋈ bâtiment. `ReservationC::SELECT_BASE` : réservation ⋈ salle ⋈ étage ⋈ bâtiment ⋈ utilisateur (+ LEFT JOIN validateur). |
-| **Calendrier interactif** | ✅ | `view/frontend/calendrier.php` + `assets/js/calendrier.js` + `view/frontend/ajax/disponibilites.php` (chargement AJAX des créneaux, choix début/fin au clic, sans rechargement). |
-| Gestion des **conflits / chevauchements** | ✅ | `ReservationC::detecterConflits()` (règle `d1 < f2 AND f1 > d2`), `validerCreneau()` (dates, horaires d'ouverture, état salle, capacité, chevauchement). **Testé** : créneau chevauchant → refusé avec le détail du conflit. |
-| **Templates responsifs** front + back | ✅ | Back-office : template Gentelella (MIT). Front-office : `assets/css/front.css` sur mesure, `@media` (grilles, sidebar). |
-| **Historique Git** avec commits réguliers | ⚠️ | Dépôt `github.com/AdamFriaa1/Reservationsalle`. À **alimenter par des commits fréquents** d'ici la soutenance (voir §5). |
-| **Notifications par email** | ✅ | `MailC` (PHPMailer en SMTP Gmail) + journalisation systématique en table `notification`. Envoi réel **testé OK** (`235 Accepted`, `250 OK`). |
-| **Aucun framework** | ✅ | Vanilla PHP/JS/CSS. PHPMailer est une librairie d'envoi SMTP, pas un framework. |
+| **Calendrier interactif** | ✅ | `view/frontend/calendrier.php` + `assets/js/calendrier.js` + `view/frontend/ajax/disponibilites.php`. Voyant d'occupation par jour, créneaux chargés en AJAX, choix d'une plage en deux clics. |
+| Gestion des **conflits / chevauchements** | ✅ | `ReservationC::detecterConflits()` (règle `d1 < f2 AND f1 > d2`), `validerCreneau()` (dates, horaires d'ouverture, état salle, capacité, chevauchement). Page dédiée `view/backend/conflits.php` + écran de déplacement assisté. |
+| **Templates responsifs** front + back | ✅ | Système de design maison : `assets/css/app.css`, `shell.css`, `compat.css`. Du mobile au grand écran. |
+| **Historique Git** avec commits réguliers | ⚠️ | Dépôt `github.com/AdamFriaa1/Reservationsalle` — à alimenter par des commits fréquents (voir §6). |
+| **Notifications par email** | ✅ | `MailC` (PHPMailer en SMTP) + journalisation systématique en table `notification`. Envoi réel testé (`235 Accepted`, `250 OK`). |
+| **Aucun framework** | ✅ | PHP, CSS et JavaScript écrits à la main. Seules dépendances externes : Google Fonts et Font Awesome (icônes). PHPMailer est une librairie SMTP, pas un framework. |
 
 ---
 
@@ -30,11 +28,11 @@ Dernière vérification : 9 septembre 2026 — PHP 8.2.12, MySQL (XAMPP).
 
 | Action de l'énoncé | État | Fichiers / méthodes |
 |---|---|---|
-| Crée et gère les **bâtiments** et les **étages** | ✅ | `addBatiment` · `updateBatiment` · `deleteBatiment` · `listBatiment` ; `addEtage` · `updateEtage` · `deleteEtage` · `listEtage`. `BatimentC`, `EtageC`. |
-| Ajoute et configure les **salles** (capacité, équipements, localisation) | ✅ | `addSalle` · `updateSalle` : capacité, type, équipements (cases + champ libre), localisation, horaires, délai d'annulation, **photo**. |
-| Gère **maintenance et disponibilité** des salles | ✅ | Colonne `salle.etat` = `disponible` / `maintenance` / `indisponible` ; `SalleC::changerEtat()`. Seules les salles `disponible` sont réservables (contrôlé dans `validerCreneau`). |
-| Visualise les **statistiques d'utilisation** | ✅ | `view/backend/statistiques.php` ; `SalleC::statistiquesUtilisation()` (taux d'occupation calculé sur les heures d'ouverture réelles), `ReservationC::topSalles()`, `repartitionParBatiment()`. |
-| Génère des **rapports par période** | ✅ | `view/backend/rapport.php` ; `ReservationC::rapportPeriode($debut,$fin,$batiment)`, `reservationsParJour()`. |
+| Crée et gère **bâtiments** et **étages** | ✅ | `addBatiment` · `updateBatiment` · `deleteBatiment` · `listBatiment` ; idem pour les étages. `BatimentC`, `EtageC`. |
+| Ajoute et configure les **salles** | ✅ | `addSalle` · `updateSalle` : capacité, type, équipements, localisation, horaires, délai d'annulation, **photo**. |
+| Gère **maintenance et disponibilité** | ✅ | Colonne `salle.etat` = `disponible` / `maintenance` / `indisponible` ; `SalleC::changerEtat()`. Seules les salles disponibles sont réservables. |
+| Visualise les **statistiques d'utilisation** | ✅ | `view/backend/statistiques.php` ; `SalleC::statistiquesUtilisation()` (taux d'occupation sur les heures d'ouverture réelles), `topSalles()`, `repartitionParBatiment()`. |
+| Génère des **rapports par période** | ✅ | `view/backend/rapport.php` ; `ReservationC::rapportPeriode()`, `reservationsParJour()`. |
 
 ---
 
@@ -42,10 +40,10 @@ Dernière vérification : 9 septembre 2026 — PHP 8.2.12, MySQL (XAMPP).
 
 | Action de l'énoncé | État | Fichiers / méthodes |
 |---|---|---|
-| **Valide ou refuse** les demandes | ✅ | `view/backend/traiterReservation.php` ; `ReservationC::changerStatut($id,$statut,$validateur,$motif)` + email `notifierValidation` / `notifierRefus`. |
-| Crée des **réservations manuelles** pour les utilisateurs | ✅ | `view/backend/addReservation.php` (accès `admin` + `gestionnaire`). |
-| Gère les **conflits** et les **déplacements** de réunions | ✅ | `view/backend/conflits.php` ; `ReservationC::deplacerReservation()` + email `notifierDeplacement($ancienCreneau,$ancienneSalle)`. |
-| Effectue des **recherches multicritères** | ✅ | `view/backend/listReservation.php` ; `ReservationC::filterReservations()` — 7 critères (texte, statut, bâtiment, salle, utilisateur, dates, participants) + tri. |
+| **Valide ou refuse** les demandes | ✅ | `traiterReservation.php` ; `ReservationC::changerStatut()` + email `notifierValidation` / `notifierRefus`. |
+| **Réservations manuelles** | ✅ | `view/backend/addReservation.php` (accès `admin` + `gestionnaire`). |
+| Gère **conflits** et **déplacements** | ✅ | `conflits.php` liste les paires qui se chevauchent. L'écran de déplacement affiche **créneau actuel / créneau visé / réservation à ne pas croiser** côte à côte, plus une bande de disponibilités cliquable. `deplacerReservation()` + email `notifierDeplacement`. |
+| **Recherches multicritères** | ✅ | `listReservation.php` ; `ReservationC::filterReservations()` — 7 critères + tri. |
 
 ---
 
@@ -53,11 +51,11 @@ Dernière vérification : 9 septembre 2026 — PHP 8.2.12, MySQL (XAMPP).
 
 | Action de l'énoncé | État | Fichiers / méthodes |
 |---|---|---|
-| Consulte les salles disponibles avec **calendrier et filtres** | ✅ | `view/frontend/salles.php` (recherche, bâtiment, type, capacité, équipement, PMR, créneau libre) ; `view/frontend/calendrier.php`. |
-| **Soumet une demande** de réservation | ✅ | `view/frontend/reserver.php` — saisie jour + heure début + heure fin, caractéristiques de la salle affichées immédiatement. **Testé** : réservation créée en `en_attente`. |
-| **Modifie ou annule** ses réservations avant la date limite | ✅ | `modifierReservation.php`, `annulerReservation.php` ; `ReservationC::peutEtreModifiee()` s'appuie sur `salle.delai_annulation` (heures). |
-| Visualise son **historique** | ✅ | `view/frontend/mesReservations.php` ; `ReservationC::getReservationsUtilisateur($id,$statut)`. |
-| Reçoit **confirmations et notifications** par email | ✅ | `notifierDemande` (accusé), `notifierValidation`, `notifierRefus`, `notifierAnnulation`, `alerterGestionnaires`. |
+| Consulte les salles avec **calendrier et filtres** | ✅ | `salles.php` (recherche, bâtiment, type, capacité, équipement, PMR, créneau libre) ; `calendrier.php`. |
+| **Soumet une demande** | ✅ | `reserver.php` — jour unique + deux heures, caractéristiques de la salle affichées immédiatement, **vérification de disponibilité en direct** avant envoi. |
+| **Modifie ou annule** avant la date limite | ✅ | `modifierReservation.php`, `annulerReservation.php` ; `peutEtreModifiee()` s'appuie sur `salle.delai_annulation`. |
+| Visualise son **historique** | ✅ | `mesReservations.php` ; `getReservationsUtilisateur()`. Onglets par statut, motif de refus, journal des emails. |
+| Reçoit **confirmations et notifications** | ✅ | `notifierDemande`, `notifierValidation`, `notifierRefus`, `notifierAnnulation`, `alerterGestionnaires`. |
 
 ---
 
@@ -65,33 +63,17 @@ Dernière vérification : 9 septembre 2026 — PHP 8.2.12, MySQL (XAMPP).
 
 | Entité demandée | Modèle | Contrôleur | Table |
 |---|---|---|---|
-| **Utilisateur** | `model/Utilisateur.php` | `UtilisateurC` | `utilisateur` (rôle, statut, mot de passe `password_hash`) |
-| **Bâtiment** | `model/Batiment.php` | `BatimentC` | `batiment` (+ `model/Etage.php` / `EtageC` / `etage`) |
+| **Utilisateur** | `model/Utilisateur.php` | `UtilisateurC` | `utilisateur` (rôle, statut, `password_hash`) |
+| **Bâtiment** | `model/Batiment.php` | `BatimentC` | `batiment` (+ `Etage` / `EtageC` / `etage`) |
 | **Salle** | `model/Salle.php` | `SalleC` | `salle` |
 | **Réservation** | `model/Reservation.php` | `ReservationC` | `reservation` (+ `notification` pour le journal des emails) |
 
 ---
 
-## 6. Tests réalisés (9 sept. 2026)
+## 6. Points à finaliser
 
-| Test | Résultat |
-|---|---|
-| Import `database/reserva_salles.sql` dans une base neuve | ✅ 2 bâtiments, 4 étages, 4 salles, 4 utilisateurs, 8 réservations, 4 notifications |
-| Connexion des 3 rôles (`admin` / `gestionnaire` / `utilisateur`), mot de passe `123456` | ✅ redirections correctes |
-| Chargement de 14 pages front + back | ✅ HTTP 200, **0 erreur/avertissement PHP** |
-| Soumission d'une réservation (jour + heures recomposés côté serveur) | ✅ enregistrée avec `date_debut` / `date_fin` corrects |
-| Créneau chevauchant une réservation existante | ✅ refusé : « Conflit avec … » |
-| Participants > capacité de la salle | ✅ refusé : « au maximum 12 personnes » |
-| Calendrier — endpoint AJAX `ajax/disponibilites.php` | ✅ JSON des créneaux, créneaux occupés marqués |
-| Affichage des photos (salle + bâtiment) front et back | ✅ images de démonstration servies |
-| Envoi email SMTP réel | ✅ `235 Accepted` / `250 OK` |
-
----
-
-## 7. Points à finaliser avant la soutenance
-
-1. **Git — commits réguliers.** Le dépôt est récent ; committer à chaque étape (petits commits datés) d'ici la validation.
-2. **`config.mail.php`.** Il utilise des identifiants Gmail empruntés. Mettre **ton** adresse + un **mot de passe d'application** Google.
-3. **Antivirus Avast.** Ajouter le dossier du projet en **exception** : Avast a déjà mis `config.php` en quarantaine et intercepte le TLS SMTP (Menu → Paramètres → Général → Exceptions).
-4. **Photos définitives.** Les images actuelles sont des placeholders SVG (`assets/uploads/batiments/`, `assets/uploads/salles/`). Les remplacer via le back-office ou en déposant un fichier de même nom.
-5. Comptes de démo : mot de passe commun `123456` — acceptable pour la démonstration.
+1. **Git — commits réguliers** d'ici la validation.
+2. **`config.mail.php`** : y mettre votre adresse et un **mot de passe d'application** Google. Ce fichier n'est jamais versionné.
+3. **Antivirus Avast** : ajouter le dossier du projet en exception. Il a déjà mis `config.php` en quarantaine et intercepte le TLS SMTP.
+4. **Photos** : les images actuelles sont des illustrations vectorielles. Les remplacer par de vraies photos via le back-office.
+5. **Mots de passe de démonstration** : tous les comptes utilisent `123456`. À changer au moins pour l'administrateur si le site doit être présenté comme prêt.

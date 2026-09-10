@@ -11,189 +11,286 @@ try { $reservationC->cloturerReservationsEchues(); } catch (Throwable $e) { /* s
 $erreur = '';
 try {
     $compteursSalles = $salleC->compteurs();
-    $nbBatiments     = count($batimentC->showBatiments());
+    $compteursRes    = $reservationC->compteurs();
+    $batiments       = $batimentC->showBatiments();
     $sallesVedette   = array_slice($salleC->getSallesDisponibles(), 0, 6);
     $prochaines      = est_connecte()
         ? array_slice($reservationC->getReservationsUtilisateur(id_courant()), 0, 3)
-        : [];
+        : $reservationC->prochaines(3);
 } catch (Throwable $e) {
     $erreur = "Impossible de charger les données : " . $e->getMessage()
             . " — vérifiez que la base « reserva_salles » est bien importée dans phpMyAdmin.";
     $compteursSalles = ['total' => 0, 'disponibles' => 0, 'capacite_totale' => 0];
-    $nbBatiments = 0; $sallesVedette = []; $prochaines = [];
+    $compteursRes    = ['validees' => 0, 'en_attente' => 0];
+    $batiments = []; $sallesVedette = []; $prochaines = [];
 }
 
-$titrePage  = 'Accueil';
-$pageActive = 'accueil';
+$titrePage     = 'Accueil';
+$pageActive    = 'accueil';
+$pleineLargeur = true;                     // la page gère elle-même ses .wrap
 require __DIR__ . '/partials/header.php';
 ?>
 
+<!-- ================================================== BANNIÈRE -->
 <section class="hero">
-    <div class="container hero-content">
-        <h1>Trouvez la bonne salle,<br>au bon moment.</h1>
-        <p>Consultez les disponibilités en temps réel, réservez en quelques clics
-           et laissez le système gérer les conflits d'horaires pour vous.</p>
-        <div class="hero-actions">
-            <a href="salles.php" class="btn btn-white"><i class="fas fa-magnifying-glass"></i> Explorer les salles</a>
-            <a href="calendrier.php" class="btn btn-outline"><i class="fas fa-calendar-days"></i> Voir le calendrier</a>
+    <span class="hero-grid" aria-hidden="true"></span>
+    <div class="wrap hero-in">
+        <div class="enter" style="max-width:44rem">
+            <h1>Trouvez la bonne salle, <em>au bon moment</em>.</h1>
+            <p class="lede">
+                Le planning de chaque salle, créneau par créneau.
+            </p>
+            <div class="hero-cta">
+                <a href="salles.php" class="btn btn-white btn-lg">
+                    <i class="fas fa-magnifying-glass"></i> Explorer les salles
+                </a>
+                <a href="calendrier.php" class="btn btn-glass btn-lg">
+                    <i class="fas fa-calendar-days"></i> Voir les disponibilités
+                </a>
+            </div>
+        </div>
+
+        <div class="hero-stats reveal">
+            <div>
+                <b data-count="<?= (int)$compteursSalles['total'] ?>">0</b>
+                <span>Salles référencées</span>
+            </div>
+            <div>
+                <b data-count="<?= (int)$compteursSalles['disponibles'] ?>">0</b>
+                <span>Réservables aujourd'hui</span>
+            </div>
+            <div>
+                <b data-count="<?= (int)$compteursSalles['capacite_totale'] ?>">0</b>
+                <span>Places au total</span>
+            </div>
+            <div>
+                <b data-count="<?= count($batiments) ?>">0</b>
+                <span>Bâtiment<?= count($batiments) > 1 ? 's' : '' ?></span>
+            </div>
         </div>
     </div>
 </section>
 
-<div class="container">
-    <div class="hero-stats">
-        <div class="stat-card">
-            <div class="stat-icon bleu"><i class="fas fa-building"></i></div>
-            <div>
-                <div class="stat-value"><?= (int)$nbBatiments ?></div>
-                <div class="stat-label">Bâtiments</div>
-            </div>
+<div class="wrap">
+    <?php if ($erreur !== ''): ?>
+        <div class="alert alert-bad mt-6">
+            <i class="fas fa-circle-exclamation"></i><span><?= e($erreur) ?></span>
         </div>
-        <div class="stat-card">
-            <div class="stat-icon vert"><i class="fas fa-door-open"></i></div>
-            <div>
-                <div class="stat-value"><?= (int)$compteursSalles['total'] ?></div>
-                <div class="stat-label">Salles au total</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon orange"><i class="fas fa-circle-check"></i></div>
-            <div>
-                <div class="stat-value"><?= (int)$compteursSalles['disponibles'] ?></div>
-                <div class="stat-label">Salles réservables</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon rouge"><i class="fas fa-users"></i></div>
-            <div>
-                <div class="stat-value"><?= (int)$compteursSalles['capacite_totale'] ?></div>
-                <div class="stat-label">Places assises</div>
-            </div>
-        </div>
-    </div>
+    <?php endif; ?>
+    <div class="mt-6"><?php flash_afficher(); ?></div>
 </div>
 
-<div class="page container">
-
-    <?php flash_afficher(); ?>
-    <?php if ($erreur !== ''): ?>
-        <div class="alert alert-danger"><i class="fas fa-circle-exclamation"></i><span><?= e($erreur) ?></span></div>
-    <?php endif; ?>
-
-    <?php if (est_connecte() && $prochaines): ?>
-        <div class="card mb-3">
-            <div class="card-header">
-                <h2><i class="fas fa-clock"></i> Vos dernières réservations</h2>
-                <a href="mesReservations.php" class="btn btn-light btn-sm">Tout voir <i class="fas fa-arrow-right"></i></a>
+<!-- ================================================== SALLES EN VEDETTE -->
+<section class="section">
+    <div class="wrap">
+        <div class="row-between wrapf mb-6 reveal">
+            <div class="section-head" style="margin-bottom:0">
+                <span class="eyebrow">Catalogue</span>
+                <h2>Salles disponibles</h2>
             </div>
-            <div class="table-wrap">
-                <table class="data">
-                    <thead>
-                        <tr><th>Objet</th><th>Salle</th><th>Créneau</th><th>Statut</th></tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($prochaines as $r): ?>
-                        <tr>
-                            <td class="cell-titre"><?= e($r['titre']) ?></td>
-                            <td>
-                                <?= e($r['nom_salle']) ?>
-                                <div class="cell-sub"><?= e($r['nom_batiment']) ?></div>
-                            </td>
-                            <td>
-                                <?= e(fmt_date($r['date_debut'])) ?>
-                                <div class="cell-sub"><?= e(fmt_heure($r['date_debut'])) ?> – <?= e(fmt_heure($r['date_fin'])) ?></div>
-                            </td>
-                            <td><span class="badge <?= classe_statut($r['statut']) ?>"><?= e(libelle_statut($r['statut'])) ?></span></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+            <a href="salles.php" class="btn">
+                Toutes les salles <i class="fas fa-arrow-right"></i>
+            </a>
         </div>
-    <?php endif; ?>
 
-    <div class="page-header">
-        <h1><i class="fas fa-star"></i> Salles disponibles</h1>
-        <p>Un aperçu des espaces que vous pouvez réserver dès maintenant.</p>
+        <?php if (!$sallesVedette): ?>
+            <div class="card"><div class="empty">
+                <span class="empty-icon"><i class="fas fa-door-closed"></i></span>
+                <h3>Aucune salle disponible</h3>
+                <p>L'administrateur des bâtiments doit d'abord créer des salles.</p>
+            </div></div>
+        <?php else: ?>
+            <div class="grid g-auto">
+                <?php foreach ($sallesVedette as $i => $s): ?>
+                    <?php
+                    $photo = photo_salle_url($s['image'] ?? null);
+                    $ico = match ($s['type_salle']) {
+                        'conference' => 'fa-chalkboard-user',
+                        'visio'      => 'fa-video',
+                        'formation'  => 'fa-graduation-cap',
+                        'coworking'  => 'fa-laptop-code',
+                        default      => 'fa-users',
+                    };
+                    ?>
+                    <article class="room reveal" data-d="<?= min(5, ($i % 3) + 1) ?>">
+                        <div class="room-media">
+                            <?php if ($photo): ?>
+                                <img src="<?= e($photo) ?>" alt="Photo de <?= e($s['nom']) ?>" loading="lazy">
+                            <?php else: ?>
+                                <i class="fas <?= $ico ?>"></i>
+                            <?php endif; ?>
+                            <span class="room-code"><?= e($s['code_salle']) ?></span>
+                            <span class="room-state">
+                                <span class="badge badge-ok">Disponible</span>
+                            </span>
+                        </div>
+                        <div class="room-body">
+                            <h3><?= e($s['nom']) ?></h3>
+                            <div class="room-where">
+                                <i class="fas fa-location-dot"></i>
+                                <?= e($s['nom_batiment']) ?> · <?= e($s['nom_etage']) ?>
+                                <?php if ((int)$s['accessible_pmr'] === 1): ?>
+                                    <i class="fas fa-wheelchair" title="Accessible PMR"></i>
+                                <?php endif; ?>
+                            </div>
+                            <div class="room-meta">
+                                <span><i class="fas fa-users"></i> <?= (int)$s['capacite'] ?> places</span>
+                                <span><i class="fas fa-tag"></i> <?= e(libelle_type_salle($s['type_salle'])) ?></span>
+                                <span><i class="fas fa-clock"></i>
+                                    <?= e(substr($s['heure_ouverture'], 0, 5)) ?>–<?= e(substr($s['heure_fermeture'], 0, 5)) ?>
+                                </span>
+                            </div>
+                            <?php $eq = liste_equipements($s['equipements']); ?>
+                            <?php if ($eq): ?>
+                                <div class="tags">
+                                    <?php foreach (array_slice($eq, 0, 3) as $x): ?>
+                                        <span class="tag"><?= e($x) ?></span>
+                                    <?php endforeach; ?>
+                                    <?php if (count($eq) > 3): ?>
+                                        <span class="tag">+<?= count($eq) - 3 ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
+                            <div class="room-actions">
+                                <a href="calendrier.php?salle=<?= (int)$s['id_salle'] ?>" class="btn btn-sm">
+                                    <i class="fas fa-calendar"></i> Disponibilités
+                                </a>
+                                <a href="reserver.php?salle=<?= (int)$s['id_salle'] ?>" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-plus"></i> Réserver
+                                </a>
+                            </div>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </div>
+</section>
 
-    <?php if (!$sallesVedette): ?>
-        <div class="card"><div class="vide">
-            <i class="fas fa-door-closed"></i>
-            <h3>Aucune salle disponible</h3>
-            <p>Les salles doivent d'abord être créées par l'administrateur des bâtiments.</p>
-        </div></div>
-    <?php else: ?>
-        <div class="grid grid-3">
-            <?php foreach ($sallesVedette as $s): ?>
-                <?php $photo = photo_salle_url($s['image'] ?? null); ?>
-                <div class="salle-card">
-                    <div class="salle-visuel<?= $photo ? ' a-photo' : '' ?>">
-                        <?php if ($photo): ?>
-                            <img class="salle-photo" src="<?= e($photo) ?>" alt="Photo de <?= e($s['nom']) ?>" loading="lazy">
-                        <?php endif; ?>
-                        <span class="code"><?= e($s['code_salle']) ?></span>
-                        <?php if (!$photo): ?>
-                            <i class="fas fa-<?= $s['type_salle'] === 'conference' ? 'chalkboard-user'
-                                : ($s['type_salle'] === 'visio' ? 'video'
-                                : ($s['type_salle'] === 'formation' ? 'graduation-cap'
-                                : ($s['type_salle'] === 'coworking' ? 'laptop-code' : 'users'))) ?>"></i>
-                        <?php endif; ?>
-                    </div>
-                    <div class="salle-body">
-                        <h3><?= e($s['nom']) ?></h3>
-                        <div class="salle-lieu">
-                            <i class="fas fa-location-dot"></i>
-                            <?= e($s['nom_batiment']) ?> · <?= e($s['nom_etage']) ?>
-                        </div>
-                        <div class="salle-meta">
-                            <span><i class="fas fa-users"></i> <?= (int)$s['capacite'] ?> places</span>
-                            <span><i class="fas fa-tag"></i> <?= e(libelle_type_salle($s['type_salle'])) ?></span>
-                            <span><i class="fas fa-clock"></i> <?= e(substr($s['heure_ouverture'], 0, 5)) ?>–<?= e(substr($s['heure_fermeture'], 0, 5)) ?></span>
-                        </div>
-                        <?php $equipements = liste_equipements($s['equipements']); ?>
-                        <?php if ($equipements): ?>
-                            <div class="equip-list">
-                                <?php foreach (array_slice($equipements, 0, 4) as $eq): ?>
-                                    <span class="equip"><?= e($eq) ?></span>
+<!-- ================================================== BÂTIMENTS + ACTIVITÉ -->
+<section class="section" style="padding-top:0">
+    <div class="wrap">
+        <div class="grid" style="grid-template-columns: minmax(0,1.35fr) minmax(0,1fr)">
+
+            <div class="reveal">
+                <div class="section-head">
+                    <span class="eyebrow">Implantations</span>
+                    <h2>Nos bâtiments</h2>
+                </div>
+                <div class="grid g-cols-2">
+                    <?php foreach ($batiments as $b): ?>
+                        <?php $bp = photo_batiment_url($b['image'] ?? null); ?>
+                        <a class="room card-lift" href="salles.php?batiment=<?= (int)$b['id_batiment'] ?>">
+                            <div class="room-media" style="aspect-ratio:16/10">
+                                <?php if ($bp): ?>
+                                    <img src="<?= e($bp) ?>" alt="<?= e($b['nom']) ?>" loading="lazy">
+                                <?php else: ?>
+                                    <i class="fas fa-building"></i>
+                                <?php endif; ?>
+                                <span class="room-code"><?= e($b['code_batiment']) ?></span>
+                            </div>
+                            <div class="room-body">
+                                <h3><?= e($b['nom']) ?></h3>
+                                <div class="room-where">
+                                    <i class="fas fa-location-dot"></i>
+                                    <?= e($b['ville']) ?>
+                                </div>
+                                <p class="muted t-sm" style="margin-top:-4px">
+                                    <?= e($b['adresse']) ?>
+                                </p>
+                            </div>
+                        </a>
+                    <?php endforeach; ?>
+                    <?php if (!$batiments): ?>
+                        <div class="card"><div class="empty">
+                            <span class="empty-icon"><i class="fas fa-building"></i></span>
+                            <p class="t-sm">Aucun bâtiment enregistré.</p>
+                        </div></div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="reveal" data-d="2">
+                <div class="section-head">
+                    <span class="eyebrow"><?= est_connecte() ? 'Mon compte' : 'Activité' ?></span>
+                    <h2><?= est_connecte() ? 'Mes dernières demandes' : 'Prochaines réunions' ?></h2>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <?php if (!$prochaines): ?>
+                            <div class="empty" style="padding:var(--s-7) 0">
+                                <span class="empty-icon"><i class="fas fa-calendar-day"></i></span>
+                                <p class="t-sm">
+                                    <?= est_connecte()
+                                        ? "Vous n'avez pas encore de réservation."
+                                        : "Aucune réunion planifiée pour l'instant." ?>
+                                </p>
+                                <?php if (est_connecte()): ?>
+                                    <a href="reserver.php" class="btn btn-primary btn-sm mt-2">
+                                        <i class="fas fa-plus"></i> Faire une demande
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="tl">
+                                <?php foreach ($prochaines as $r): ?>
+                                    <?php
+                                    $ton = match ($r['statut']) {
+                                        'validee', 'terminee' => 'ok',
+                                        'en_attente'          => 'warn',
+                                        'refusee', 'annulee'  => 'bad',
+                                        default               => '',
+                                    };
+                                    ?>
+                                    <div class="tl-item <?= $ton ?>">
+                                        <div style="min-width:0">
+                                            <div class="tl-when">
+                                                <?= e(fmt_datetime($r['date_debut'])) ?>
+                                                → <?= e(fmt_heure($r['date_fin'])) ?>
+                                            </div>
+                                            <div class="tl-what"><?= e($r['titre']) ?></div>
+                                            <div class="row g-2 mt-2 wrapf">
+                                                <span class="badge badge-plain badge-info">
+                                                    <?= e($r['nom_salle']) ?>
+                                                </span>
+                                                <span class="badge <?= e(classe_statut($r['statut'])) ?>">
+                                                    <?= e(libelle_statut($r['statut'])) ?>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 <?php endforeach; ?>
                             </div>
+                            <?php if (est_connecte()): ?>
+                                <a href="mesReservations.php" class="btn btn-block mt-5">
+                                    Tout l'historique <i class="fas fa-arrow-right"></i>
+                                </a>
+                            <?php endif; ?>
                         <?php endif; ?>
-                        <div class="salle-actions">
-                            <a href="calendrier.php?salle=<?= (int)$s['id_salle'] ?>" class="btn btn-light btn-sm">
-                                <i class="fas fa-calendar"></i> Disponibilités
-                            </a>
-                            <a href="reserver.php?salle=<?= (int)$s['id_salle'] ?>" class="btn btn-primary btn-sm">
-                                <i class="fas fa-plus"></i> Réserver
-                            </a>
-                        </div>
                     </div>
                 </div>
-            <?php endforeach; ?>
-        </div>
 
-        <div class="text-center mt-3">
-            <a href="salles.php" class="btn btn-light">Voir toutes les salles <i class="fas fa-arrow-right"></i></a>
+                <?php if (!est_connecte()): ?>
+                    <div class="card mt-5" style="background:var(--brand-50); border-color:var(--brand-100)">
+                        <div class="card-body">
+                            <h3>Prêt à réserver ?</h3>
+                            <p class="muted t-sm mt-2">
+                                Créez un compte pour envoyer des demandes, suivre leur statut
+                                et recevoir les confirmations par email.
+                            </p>
+                            <div class="row g-2 mt-5 wrapf">
+                                <a href="register.php" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-user-plus"></i> Créer un compte
+                                </a>
+                                <a href="login.php" class="btn btn-sm">Se connecter</a>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
         </div>
-    <?php endif; ?>
-
-    <div class="grid grid-3 mt-3" style="margin-top:44px;">
-        <div class="card"><div class="card-body">
-            <div class="stat-icon bleu mb-2"><i class="fas fa-magnifying-glass"></i></div>
-            <h3 style="font-size:1.02rem;margin-bottom:6px;">1. Cherchez</h3>
-            <p class="text-muted" style="font-size:.9rem;">Filtrez par bâtiment, capacité, type de salle ou équipement.</p>
-        </div></div>
-        <div class="card"><div class="card-body">
-            <div class="stat-icon orange mb-2"><i class="fas fa-calendar-plus"></i></div>
-            <h3 style="font-size:1.02rem;margin-bottom:6px;">2. Réservez</h3>
-            <p class="text-muted" style="font-size:.9rem;">Choisissez un créneau libre : les conflits sont détectés automatiquement.</p>
-        </div></div>
-        <div class="card"><div class="card-body">
-            <div class="stat-icon vert mb-2"><i class="fas fa-envelope-circle-check"></i></div>
-            <h3 style="font-size:1.02rem;margin-bottom:6px;">3. Recevez la confirmation</h3>
-            <p class="text-muted" style="font-size:.9rem;">Un email vous prévient dès que le gestionnaire valide la demande.</p>
-        </div></div>
     </div>
-</div>
+</section>
 
 <?php require __DIR__ . '/partials/footer.php'; ?>

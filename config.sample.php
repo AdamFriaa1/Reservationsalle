@@ -1,7 +1,7 @@
 <?php
 /**
  * Copiez ce fichier en « config.php » (même dossier) si votre antivirus
- * a supprimé/bloqué l'original. Contenu identique à la version d'origine.
+ * a supprimé ou bloqué l'original. Contenu identique à la version d'origine.
  */
 
 class config

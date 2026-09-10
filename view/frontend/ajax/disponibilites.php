@@ -12,6 +12,9 @@ header('Content-Type: application/json; charset=utf-8');
 
 $idSalle = $_GET['salle'] ?? '';
 $date    = $_GET['date'] ?? '';
+// Réservation à ignorer (déplacement : elle ne doit pas se bloquer elle-même)
+$exclure = (isset($_GET['exclure']) && ctype_digit((string)$_GET['exclure']))
+    ? (int)$_GET['exclure'] : null;
 
 // ---- Contrôles de saisie ----
 if (!ctype_digit((string)$idSalle)) {
@@ -40,7 +43,7 @@ try {
         exit;
     }
 
-    $creneaux = $reservationC->getCreneauxJour($salle, $date);
+    $creneaux = $reservationC->getCreneauxJour($salle, $date, $exclure);
 
     // On n'expose que ce dont le client a besoin
     $sortie = array_map(static function (array $c): array {
@@ -54,7 +57,12 @@ try {
     }, $creneaux);
 
     echo json_encode([
-        'salle'    => ['id' => (int)$salle['id_salle'], 'nom' => $salle['nom'], 'capacite' => (int)$salle['capacite']],
+        'salle'    => [
+            'id'       => (int)$salle['id_salle'],
+            'nom'      => $salle['nom'],
+            'capacite' => (int)$salle['capacite'],
+            'horaires' => substr($salle['heure_ouverture'], 0, 5) . '–' . substr($salle['heure_fermeture'], 0, 5),
+        ],
         'date'     => $date,
         'creneaux' => $sortie,
     ], JSON_UNESCAPED_UNICODE);

@@ -44,6 +44,23 @@ try {
     }
 } catch (Throwable $e) { $conflitsActuels = []; }
 
+/* Réservation qui bloque, transmise par la page « Conflits » : on l'affiche
+   en vis-à-vis pour que le gestionnaire voie les deux créneaux à la fois. */
+$bloquante = null;
+if (isset($_GET['conflit']) && ctype_digit((string)$_GET['conflit'])) {
+    try {
+        $c = $reservationC->getReservation((int)$_GET['conflit']);
+        if ($c !== null && (int)$c['id_reservation'] !== $id) { $bloquante = $c; }
+    } catch (Throwable $e) { $bloquante = null; }
+}
+// À défaut, on prend le premier chevauchement détecté automatiquement.
+if ($bloquante === null && $conflitsActuels) { $bloquante = $conflitsActuels[0]; }
+
+// Durée d'origine, en minutes : un déplacement conserve la durée par défaut.
+$dureeOrigine = max(15, (int)round(
+    (strtotime($existante['date_fin']) - strtotime($existante['date_debut'])) / 60
+));
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!csrf_valide()) {
@@ -167,24 +184,66 @@ require __DIR__ . '/partials/header.php';
     </div>
 <?php endif; ?>
 
-<?php if ($conflitsActuels && !$erreurs): ?>
-    <div class="alert alert-warning">
-        <i class="fas fa-triangle-exclamation"></i>
-        <div>
-            <strong>Cette réunion chevauche <?= count($conflitsActuels) ?> autre(s) réservation(s) dans la même salle :</strong>
-            <ul>
-                <?php foreach ($conflitsActuels as $c): ?>
-                    <li>
-                        « <?= e($c['titre']) ?> » —
-                        <?= e(fmt_heure($c['date_debut'])) ?> à <?= e(fmt_heure($c['date_fin'])) ?>
-                        (<?= e(libelle_statut($c['statut'])) ?>)
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-            Changez de salle ou décalez le créneau pour résoudre le conflit.
-        </div>
+<!-- ================================================ COMPARATIF AVANT / APRÈS -->
+<div class="card mb-4" id="carteComparatif">
+    <div class="card-header">
+        <h3><i class="fas fa-right-left"></i> Créneau actuel et créneau visé</h3>
+        <span class="badge badge-plain" id="badgeChangement">Aucun changement</span>
     </div>
-<?php endif; ?>
+    <div class="card-body">
+        <div class="deplacement">
+
+            <!-- Avant -->
+            <div class="dep-bloc">
+                <span class="dep-label">Actuellement</span>
+                <span class="dep-heures"><?= e(fmt_heure($existante['date_debut'])) ?> → <?= e(fmt_heure($existante['date_fin'])) ?></span>
+                <span class="dep-sous"><?= e(fmt_date($existante['date_debut'])) ?></span>
+                <span class="dep-salle"><i class="fas fa-door-open"></i> <?= e($existante['nom_salle']) ?> — <?= e($existante['nom_batiment']) ?></span>
+            </div>
+
+            <span class="dep-fleche" aria-hidden="true"><i class="fas fa-arrow-right"></i></span>
+
+            <!-- Après (mis à jour en direct par le formulaire) -->
+            <div class="dep-bloc cible" id="depApres">
+                <span class="dep-label">Après déplacement</span>
+                <span class="dep-heures" id="depHeures">—</span>
+                <span class="dep-sous" id="depDate">—</span>
+                <span class="dep-salle"><i class="fas fa-door-open"></i> <span id="depSalle">—</span></span>
+            </div>
+
+            <!-- Réservation qui bloque -->
+            <?php if ($bloquante !== null): ?>
+                <div class="dep-bloc bloquant">
+                    <span class="dep-label">À ne pas croiser</span>
+                    <span class="dep-heures"><?= e(fmt_heure($bloquante['date_debut'])) ?> → <?= e(fmt_heure($bloquante['date_fin'])) ?></span>
+                    <span class="dep-sous">« <?= e($bloquante['titre']) ?> »</span>
+                    <span class="dep-salle">
+                        <span class="badge <?= e(classe_statut($bloquante['statut'])) ?>"><?= e(libelle_statut($bloquante['statut'])) ?></span>
+                        <?= e($bloquante['prenom_utilisateur'] . ' ' . $bloquante['nom_utilisateur']) ?>
+                    </span>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <?php if ($conflitsActuels && !$erreurs): ?>
+            <div class="alert alert-warning mt-4" style="margin-bottom:0">
+                <i class="fas fa-triangle-exclamation"></i>
+                <div>
+                    <strong>Le créneau actuel chevauche <?= count($conflitsActuels) ?> autre(s) réservation(s) :</strong>
+                    <ul>
+                        <?php foreach ($conflitsActuels as $c): ?>
+                            <li>
+                                « <?= e($c['titre']) ?> » —
+                                <?= e(fmt_heure($c['date_debut'])) ?> à <?= e(fmt_heure($c['date_fin'])) ?>
+                                (<?= e(libelle_statut($c['statut'])) ?>)
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
 
 <?php if ($alternatives): ?>
     <div class="card mb-3" style="border-left:4px solid var(--vert);">
@@ -250,6 +309,24 @@ require __DIR__ . '/partials/header.php';
                         <span class="erreur-champ" id="err-heure_fin"></span>
                     </div>
                 </div>
+
+                <!-- ============ DISPONIBILITÉS DE LA SALLE CE JOUR-LÀ ============ -->
+                <div class="rule mt-4 mb-4"></div>
+                <div class="d-flex justify-between align-center flex-wrap gap-2 mb-3">
+                    <h4 style="font-size:var(--t-base)">
+                        <i class="fas fa-table-cells" style="color:var(--brand-500)"></i>
+                        Disponibilités de la salle ce jour-là
+                    </h4>
+                    <span class="aide" id="dispoResume"></span>
+                </div>
+                <div id="dispoStrip">
+                    <p class="aide"><i class="fas fa-circle-info"></i> Chargement…</p>
+                </div>
+                <p class="aide mt-3">
+                    <i class="fas fa-hand-pointer"></i>
+                    Cliquez un créneau libre : la réunion y est déplacée en gardant sa durée
+                    (<?= e(fmt_minutes($dureeOrigine)) ?>).
+                </p>
             </div>
         </div>
 
@@ -332,9 +409,173 @@ require __DIR__ . '/partials/header.php';
         btn.addEventListener('click', function () {
             selSalle.value = btn.getAttribute('data-salle-alt');
             majCapacite();
+            chargerDispos();
             selSalle.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
     });
+
+    /* =================================================================
+       Comparatif « avant / après » et bande de disponibilités
+       ================================================================= */
+    const ID_RESERVATION = <?= (int)$id ?>;
+    const DUREE_ORIGINE  = <?= (int)$dureeOrigine ?>;          // minutes
+    const ORIGINE = {
+        salle: '<?= e(addslashes($existante['nom_salle'])) ?>',
+        date:  '<?= e(date('Y-m-d', strtotime($existante['date_debut']))) ?>',
+        debut: '<?= e(date('H:i', strtotime($existante['date_debut']))) ?>',
+        fin:   '<?= e(date('H:i', strtotime($existante['date_fin']))) ?>'
+    };
+    const BLOQUANTE = <?= $bloquante !== null ? json_encode([
+        'titre' => $bloquante['titre'],
+        'salle' => (int)$bloquante['id_salle'],
+        'date'  => date('Y-m-d', strtotime($bloquante['date_debut'])),
+        'debut' => date('H:i',   strtotime($bloquante['date_debut'])),
+        'fin'   => date('H:i',   strtotime($bloquante['date_fin'])),
+    ], JSON_UNESCAPED_UNICODE) : 'null' ?>;
+
+    const champDate  = document.getElementById('date');
+    const champDebut = document.getElementById('heure_debut');
+    const champFin   = document.getElementById('heure_fin');
+    const strip      = document.getElementById('dispoStrip');
+    const resume     = document.getElementById('dispoResume');
+    const badge      = document.getElementById('badgeChangement');
+
+    let creneaux = [];
+
+    const enMinutes = h => { const [a, b] = h.split(':').map(Number); return a * 60 + b; };
+    const enHeure   = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+
+    /* ---- Le panneau « après déplacement » suit les champs en direct ---- */
+    function majComparatif() {
+        const opt = selSalle.selectedOptions[0];
+        const nomSalle = opt ? opt.textContent.trim().split('—')[0].trim() : '—';
+        document.getElementById('depSalle').textContent  = nomSalle;
+        document.getElementById('depHeures').textContent =
+            (champDebut.value && champFin.value) ? champDebut.value + ' → ' + champFin.value : '—';
+
+        if (champDate.value) {
+            const d = new Date(champDate.value + 'T00:00:00');
+            const jours = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+            const mois  = ['janvier','février','mars','avril','mai','juin','juillet','août',
+                           'septembre','octobre','novembre','décembre'];
+            document.getElementById('depDate').textContent =
+                jours[d.getDay()] + ' ' + d.getDate() + ' ' + mois[d.getMonth()] + ' ' + d.getFullYear();
+        }
+
+        const bouge = champDate.value !== ORIGINE.date
+                   || champDebut.value !== ORIGINE.debut
+                   || champFin.value   !== ORIGINE.fin
+                   || nomSalle !== ORIGINE.salle;
+        badge.textContent = bouge ? 'Déplacement en cours' : 'Aucun changement';
+        badge.className   = 'badge badge-plain ' + (bouge ? 'badge-warn' : '');
+        document.getElementById('depApres').classList.toggle('actif', bouge);
+    }
+
+    /* ---- Bande de créneaux de la salle sélectionnée ---- */
+    let jeton = 0;
+    async function chargerDispos() {
+        const salle = selSalle.value, date = champDate.value;
+        if (!salle || !date) { strip.innerHTML = ''; return; }
+
+        const monJeton = ++jeton;
+        strip.innerHTML = '<div class="slots">' + '<div class="skel" style="height:36px"></div>'.repeat(10) + '</div>';
+
+        try {
+            // La réunion déplacée est exclue : elle ne doit pas se bloquer elle-même.
+            const url = '../frontend/ajax/disponibilites.php?salle=' + encodeURIComponent(salle)
+                      + '&date=' + encodeURIComponent(date)
+                      + '&exclure=' + ID_RESERVATION;
+            const rep  = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            const data = await rep.json();
+            if (monJeton !== jeton) return;
+
+            if (data.erreur) {
+                strip.innerHTML = '<div class="alert alert-warning" style="margin:0">'
+                    + '<i class="fas fa-triangle-exclamation"></i><span>' + data.erreur + '</span></div>';
+                resume.textContent = '';
+                return;
+            }
+            creneaux = data.creneaux || [];
+            dessinerDispos();
+        } catch (e) {
+            if (monJeton === jeton) {
+                strip.innerHTML = '<p class="aide">Disponibilités indisponibles : ' + e.message + '</p>';
+            }
+        }
+    }
+
+    function dessinerDispos() {
+        if (!creneaux.length) { strip.innerHTML = '<p class="aide">Salle fermée ce jour-là.</p>'; return; }
+
+        const d = champDebut.value ? enMinutes(champDebut.value) : null;
+        const f = champFin.value   ? enMinutes(champFin.value)   : null;
+        const memeSalleQueBloquante = BLOQUANTE && String(BLOQUANTE.salle) === String(selSalle.value)
+                                   && BLOQUANTE.date === champDate.value;
+
+        let libres = 0, html = '<div class="slots">';
+        creneaux.forEach((c, i) => {
+            const deb = enMinutes(c.debut), fin = enMinutes(c.fin);
+            let cls = 'slot';
+            if (c.passe)       cls += ' gone';
+            else if (c.occupe) cls += ' taken';
+            else { cls += ' free'; libres++; }
+
+            // Créneau retenu pour le déplacement
+            if (d !== null && f !== null && deb >= d && fin <= f) {
+                cls += (deb === d || fin === f) ? ' edge' : ' mid';
+            }
+            // Créneau de la réservation qui bloque : bien visible
+            let titre = c.occupe && c.titre ? ' title="Occupé : ' + c.titre.replace(/"/g, '&quot;') + '"' : '';
+            if (memeSalleQueBloquante && deb >= enMinutes(BLOQUANTE.debut) && fin <= enMinutes(BLOQUANTE.fin)) {
+                cls += ' bloquant';
+                titre = ' title="' + BLOQUANTE.titre.replace(/"/g, '&quot;') + ' — à ne pas croiser"';
+            }
+            html += '<div class="' + cls + '" data-i="' + i + '"' + titre + '>' + c.debut + '</div>';
+        });
+        html += '</div>';
+        strip.innerHTML = html;
+        resume.textContent = libres + ' créneau' + (libres > 1 ? 'x' : '') + ' libre' + (libres > 1 ? 's' : '')
+                           + ' sur ' + creneaux.length;
+
+        strip.querySelectorAll('.slot.free').forEach(el => {
+            el.addEventListener('click', () => poser(parseInt(el.dataset.i, 10)));
+        });
+    }
+
+    /* ---- Clic sur un créneau libre : on y pose la réunion, durée conservée ---- */
+    function poser(i) {
+        const debut = enMinutes(creneaux[i].debut);
+        const fin   = debut + DUREE_ORIGINE;
+
+        // Toute la plage doit être libre et tenir dans les horaires d'ouverture
+        const dernier = enMinutes(creneaux[creneaux.length - 1].fin);
+        if (fin > dernier) {
+            RS.toast('La réunion (' + DUREE_ORIGINE + ' min) dépasserait l\'heure de fermeture.', 'bad');
+            return;
+        }
+        const occupe = creneaux.some(c =>
+            !c.passe && c.occupe && enMinutes(c.debut) < fin && enMinutes(c.fin) > debut);
+        if (occupe) {
+            RS.toast('Cette plage traverse un créneau déjà occupé.', 'bad');
+            return;
+        }
+
+        champDebut.value = enHeure(debut);
+        champFin.value   = enHeure(fin);
+        [champDebut, champFin].forEach(c => c.dispatchEvent(new Event('change', { bubbles: true })));
+        dessinerDispos();
+        majComparatif();
+        RS.toast('Créneau proposé : ' + enHeure(debut) + ' → ' + enHeure(fin)
+               + '. Enregistrez pour confirmer.', 'ok');
+    }
+
+    selSalle.addEventListener('change', () => { chargerDispos(); majComparatif(); });
+    champDate.addEventListener('change', () => { chargerDispos(); majComparatif(); });
+    [champDebut, champFin].forEach(c =>
+        c.addEventListener('change', () => { dessinerDispos(); majComparatif(); }));
+
+    majComparatif();
+    chargerDispos();
 })();
 
 Valider.attacher('formReservation', {

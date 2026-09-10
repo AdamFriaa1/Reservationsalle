@@ -173,7 +173,42 @@ INSERT INTO `reservation`
 (5,1,4,'Revue budgétaire','Arbitrages budget T4.','2026-09-04 15:00:00','2026-09-04 16:00:00',7,'terminee',NULL,2,'2026-09-02 10:00:00','2026-09-01 09:50:00'),
 (6,2,3,'Formation initiale outils','Prise en main des outils internes pour les nouveaux arrivants.','2026-09-08 14:00:00','2026-09-08 17:00:00',22,'terminee',NULL,2,'2026-09-05 09:30:00','2026-09-03 14:10:00'),
 (7,1,3,'Entretien annuel','Entretien individuel.','2026-09-16 11:00:00','2026-09-16 12:00:00',2,'refusee','Créneau réservé pour un événement de la Direction.',2,'2026-09-09 16:10:00','2026-09-09 10:25:00'),
-(8,3,4,'Créneau annulé','Réunion finalement reportée par le demandeur.','2026-09-18 10:00:00','2026-09-18 10:30:00',4,'annulee',NULL,NULL,NULL,'2026-09-09 12:00:00');
+(8,3,4,'Créneau annulé','Réunion finalement reportée par le demandeur.','2026-09-20 10:00:00','2026-09-20 10:30:00',4,'annulee',NULL,NULL,NULL,'2026-09-09 12:00:00'),
+-- Deux journées volontairement chargées sur Carthage : sans elles, un jeu de
+-- démonstration léger ne dépasse jamais 30 % d'occupation et le calendrier
+-- reste vert partout. Le 17/09 atteint « se remplit », le 18/09 « complet ».
+(9,1,3,'Atelier de cadrage','Cadrage fonctionnel avec les référents métier.','2026-09-17 09:00:00','2026-09-17 12:00:00',10,'validee',NULL,2,'2026-09-09 18:00:00','2026-09-09 17:00:00'),
+(10,1,4,'Point commercial','Revue du portefeuille clients.','2026-09-17 14:00:00','2026-09-17 15:30:00',8,'validee',NULL,2,'2026-09-09 18:05:00','2026-09-09 17:10:00'),
+(11,1,3,'Formation sécurité — matin','Session obligatoire, première partie.','2026-09-18 08:00:00','2026-09-18 12:00:00',12,'validee',NULL,2,'2026-09-09 18:10:00','2026-09-09 17:20:00'),
+(12,1,4,'Formation sécurité — après-midi','Session obligatoire, seconde partie.','2026-09-18 13:00:00','2026-09-18 19:00:00',12,'validee',NULL,2,'2026-09-09 18:12:00','2026-09-09 17:25:00'),
+
+-- =====================================================================
+--  Chevauchements de démonstration (page « Conflits » du back-office)
+--  Un conflit = deux réservations à venir, même salle, statut « en attente »
+--  ou « validée », dont les créneaux se croisent.
+--  Quatre cas de figure volontairement différents :
+-- =====================================================================
+
+-- A. Deux demandes concurrentes sur le même créneau (aucune encore tranchée).
+--    Medina, 22/09 — chevauchement 10:00→11:00 (1 h).
+(13,2,3,'Réunion de service','Point mensuel de l''équipe support.','2026-09-22 09:00:00','2026-09-22 11:00:00',14,'en_attente',NULL,NULL,NULL,'2026-09-09 09:10:00'),
+(14,2,4,'Présentation trimestrielle','Résultats du trimestre devant les managers.','2026-09-22 10:00:00','2026-09-22 12:00:00',30,'en_attente',NULL,NULL,NULL,'2026-09-09 09:25:00'),
+
+-- B. Conflit CRITIQUE : les deux réservations ont déjà été validées.
+--    Utique, 23/09 — chevauchement 15:00→16:00 (1 h).
+(15,3,3,'Atelier UX','Test utilisateur sur le nouveau parcours.','2026-09-23 14:00:00','2026-09-23 16:00:00',6,'validee',NULL,2,'2026-09-09 10:00:00','2026-09-08 15:00:00'),
+(16,3,4,'Entretien candidat','Entretien technique — poste développeur.','2026-09-23 15:00:00','2026-09-23 17:00:00',3,'validee',NULL,1,'2026-09-09 10:05:00','2026-09-08 16:30:00'),
+
+-- C. Inclusion totale : une courte réunion tombe au milieu d''une longue.
+--    Medina, 24/09 — chevauchement 13:00→14:00 (1 h).
+(17,2,3,'Séminaire annuel','Journée complète, plénière et ateliers.','2026-09-24 09:00:00','2026-09-24 17:00:00',35,'validee',NULL,2,'2026-09-09 11:00:00','2026-09-06 09:00:00'),
+(18,2,4,'Point rapide équipe','Débrief express avant la reprise.','2026-09-24 13:00:00','2026-09-24 14:00:00',5,'en_attente',NULL,NULL,NULL,'2026-09-09 11:40:00'),
+
+-- D. Cascade : trois réservations se croisent deux à deux (3 paires détectées).
+--    Carthage, 25/09 — 10:00→12:00, 11:00→12:00 et 11:00→13:00.
+(19,1,3,'Comité technique','Arbitrages d''architecture.','2026-09-25 09:00:00','2026-09-25 12:00:00',8,'en_attente',NULL,NULL,NULL,'2026-09-09 08:30:00'),
+(20,1,4,'Revue de sprint','Démonstration des incréments.','2026-09-25 10:00:00','2026-09-25 13:00:00',10,'en_attente',NULL,NULL,NULL,'2026-09-09 08:45:00'),
+(21,1,3,'Déjeuner de travail','Séance de travail avec le prestataire.','2026-09-25 11:00:00','2026-09-25 14:00:00',6,'en_attente',NULL,NULL,NULL,'2026-09-09 08:55:00');
 
 -- Journal des notifications (extrait — la table est aussi alimentée à l'exécution)
 INSERT INTO `notification`

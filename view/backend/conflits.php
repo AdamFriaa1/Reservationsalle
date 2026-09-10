@@ -159,7 +159,12 @@ require __DIR__ . '/partials/header.php';
 
                 <div class="grid grid-2">
                     <?php foreach (['a', 'b'] as $cle): ?>
-                        <?php $r = $p[$cle]; ?>
+                        <?php
+                        $r = $p[$cle];
+                        // L'autre réservation de la paire : transmise à l'écran de
+                        // déplacement pour être affichée en vis-à-vis.
+                        $autre = $p[$cle === 'a' ? 'b' : 'a'];
+                        ?>
                         <div class="conflit-bloc">
                             <div class="conflit-entete">
                                 <strong><?= e($r['titre']) ?></strong>
@@ -172,7 +177,7 @@ require __DIR__ . '/partials/header.php';
                                 <li><i class="fas fa-calendar-plus"></i> Demandée le <?= e(fmt_date($r['date_creation'])) ?></li>
                             </ul>
                             <div class="d-flex gap-2 mt-3">
-                                <a href="updateReservation.php?id=<?= (int)$r['id_reservation'] ?>"
+                                <a href="updateReservation.php?id=<?= (int)$r['id_reservation'] ?>&conflit=<?= (int)$autre['id_reservation'] ?>"
                                    class="btn btn-primary btn-sm">
                                     <i class="fas fa-arrows-up-down-left-right"></i> Déplacer
                                 </a>
